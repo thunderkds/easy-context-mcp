@@ -42,7 +42,7 @@ ls: cannot access 'docs/spikes': No such file or directory
 ls: cannot access 'experiments/spikes': No such file or directory
 ```
 
-**AFTER**: [same command, post-change] OR [verbatim excerpt of the new content]
+**AFTER**: `ls docs/spikes experiments/spikes` -> `docs/spikes: 0001-stage1-spikes.md` and `experiments/spikes: spike1_fastembed.py spike2_lock.py spike2_run.sh spike3_echo_server.py test_spikes.py`; `pytest experiments/spikes` -> `3 passed in 22.88s` (2026-10-20T07:51Z).
 
 **DELTA**: [one sentence — what a user can now do that they could not before]
 
