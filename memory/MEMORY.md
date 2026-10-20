@@ -38,3 +38,6 @@
 - [File hygiene policy](decisions.md#architecture) — skip reasons object, secret basename list, binary sniff, capped read, size+mtime→hash change detection, removal.
 - [Peer session shares checkout](learnings.md) — easy-context-mcp-89 commits on main; owns HUN-16/17; never `git add -A`; stage by name.
 - [Merge gate blocks merge-tree too](learnings.md) — set Done first; conflicts go back to the task's agent.
+- [Code symbol slices, schema v2 (DDR-0002)](decisions.md#architecture) — tree-sitter py/js/ts/java/kt symbol slices, content ids, FTS5 name bonus +2/+1, v1 index rebuilt.
+- [tree-sitter facts](learnings.md) — 0.26.0 segfaults (pin <0.26); Kotlin one-line bodies fall back; +10 MiB; ~5x slices.
+- [easy-verifier over HTTP](learnings.md) — JSON-RPC to :8766 when tools not loaded; write_report findings schema strict.

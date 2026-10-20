@@ -53,3 +53,13 @@ Peer session `easy-context-mcp-89` commits on local `main` too (DDR-0002, PRD FR
 `pre_bash_block_unsafe_merge` blocks any command containing a merge (even `git merge-tree` previews) while a task is In Progress. Set Done first, then preview/merge. Conflicts between parallel tasks go back to the later task's agent (`git merge main` in its worktree) — the Supervisor does not write the resolution.
 **Files**: .claude/hooks/pre_bash_block_unsafe_merge.py
 
+### 2026-10-20 — tree-sitter facts (HUN-16)
+- `tree-sitter==0.26.0` segfaults walking large real files (stdlib typing.py); pinned `>=0.25.2,<0.26`. A segfault kills the whole server process.
+- tree-sitter-kotlin 1.1.0: a one-line class/object body (`object O { fun o() {} }`) parses as ERROR → that file falls back to line windows.
+- Grammar wheels add ~10.3 MiB installed (kotlin 3.5, typescript 3.0); manylinux x86_64 + aarch64 wheels exist for CPython 3.10–3.13.
+- Symbol slicing makes ~5x more slices on code-heavy repos; first index ~4.5x slower (re-runs hit the embed cache).
+**Files**: pyproject.toml, src/easy_context_mcp/symbols.py
+
+### 2026-10-20 — Calling easy-verifier without its MCP tools loaded
+When the session has no `easy-verifier` tools, call http://127.0.0.1:8766/mcp over JSON-RPC (initialize → `mcp-session-id` header → notifications/initialized → tools/call). `write_report` findings need title, detail, dimension, severity, confidence ('low'|'medium'|'high') and an evidence_ref `path:start-end` that exists in that dimension's evidence pack; otherwise pass `findings: []` and put the review summary in `agent_input.summary`.
+**Files**: PROJECT_SPEC.md

@@ -30,6 +30,11 @@
 **Why**: FR-001/FR-002/FR-024; Stage 4 security review added the extra credential names and the bounded read.
 **Files**: src/easy_context_mcp/discovery.py, src/easy_context_mcp/tools.py, src/easy_context_mcp/store.py
 
+### 2026-10-20 — Code symbol slices + symbol-name match (HUN-16) → see DDR-0002
+**Decision**: Index schema v2 (`PRAGMA user_version=2`): slices gain nullable symbol, kind, start_byte, end_byte, part; FTS5 table `symbol_fts` kept in step by triggers. Older index → dropped and rebuilt in one transaction by the next index_path (vectors come back from the embed cache); reads of an old index raise "Run index_path to rebuild it". Python/JS/TS/TSX/Java/Kotlin files → one slice per function/class/method/interface (+ gap slices); symbol and gap slice ids = sha256(path, kind, symbol, part, text hash, repeat counter)[:16] (PRD FR-003, AC8); line-window and Markdown ids unchanged. Search score = cosine + 2.0 (query names the symbol or a dotted tail) or + 1.0 (prefix). Parse failure, RecursionError or missing/ABI-incompatible grammar → line windows for that file.
+**Why**: User (2026-10-20): AST symbol + graph retrieval beats vector search over line windows for code; option 1 (inside the six tools).
+**Files**: src/easy_context_mcp/symbols.py, src/easy_context_mcp/chunking.py, src/easy_context_mcp/store.py, src/easy_context_mcp/tools.py, pyproject.toml
+
 ## Infrastructure
 
 ### 2026-10-20 — easy-verifier confidence score on every task (advisory)
