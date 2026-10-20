@@ -104,9 +104,82 @@ for path, sym in [("app.py", "run"), ("auth.py", "authenticate"), ("app.py", "Se
         print(f"   {n['edge_type']:10} {n['path']}:{n['start_line']}-{n['end_line']} {n.get('symbol')}")
 ```
 
-**AFTER**: [same command, post-change] OR [verbatim excerpt of the new content]
+**AFTER** (same script, 2026-10-20T10:28:14Z, branch hun-17-symbol-graph; `calls`, `called_by`, `contains` and `extends` rank first, file-level imports last; with limit 4 on `run` the 4 callees still appear although app.py has 5 imports):
 
-**DELTA**: [one sentence — what a user can now do that they could not before]
+```text
+== app.py::run
+   calls      app.py:19-20 helper
+   calls      auth.py:1-3 normalize
+   calls      auth.py:6-7 authenticate
+   calls      util.py:1-3 shared_util
+   same_file  app.py:19-20 helper
+   import     auth.py:1-3 normalize
+   import     m1.py:1-2 None
+   import     m2.py:1-2 None
+   import     m3.py:1-2 None
+   import     m4.py:1-2 None
+== auth.py::authenticate
+   calls      auth.py:1-3 normalize
+   called_by  app.py:23-30 run
+   same_file  auth.py:1-3 normalize
+   import     app.py:1-3 None
+== app.py::Service.start
+   calls      app.py:15-16 Service.stop
+   calls      app.py:19-20 helper
+   same_file  app.py:10-10 Service
+   same_file  app.py:15-16 Service.stop
+   import     auth.py:1-3 normalize
+   import     m1.py:1-2 None
+   import     m2.py:1-2 None
+   import     m3.py:1-2 None
+   import     m4.py:1-2 None
+== app.py::Service
+   contains   app.py:11-13 Service.start
+   contains   app.py:15-16 Service.stop
+   extends    app.py:6-7 Base
+   same_file  app.py:6-7 Base
+   same_file  app.py:11-13 Service.start
+   import     auth.py:1-3 normalize
+   import     m1.py:1-2 None
+   import     m2.py:1-2 None
+   import     m3.py:1-2 None
+   import     m4.py:1-2 None
+== web/repo.ts::Repo
+   contains   web/repo.ts:10-12 Repo.add
+   contains   web/repo.ts:14-14 Repo.save
+   extends    web/repo.ts:3-5 Persist
+   extends    web/repo.ts:7-7 BaseRepo
+   same_file  web/repo.ts:7-7 BaseRepo
+   same_file  web/repo.ts:10-12 Repo.add
+   import     web/fmt.ts:1-3 formatTotal
+== jvm/Shipper.java::Shipper
+   contains   jvm/Shipper.java:8-10 Shipper.ship
+   contains   jvm/Shipper.java:12-12 Shipper.load
+   extends    jvm/Shipper.java:3-3 Carrier
+   extends    jvm/Shipper.java:5-5 Trackable
+   same_file  jvm/Shipper.java:5-5 Trackable
+   same_file  jvm/Shipper.java:8-10 Shipper.ship
+== jvm/Billing.kt::Ledger
+   contains   jvm/Billing.kt:14-14 Ledger.post
+   extends    jvm/Billing.kt:3-3 Account
+   extends    jvm/Billing.kt:5-5 Auditable
+   same_file  jvm/Billing.kt:11-11 None
+   same_file  jvm/Billing.kt:14-14 Ledger.post
+== app.py::helper
+   called_by  app.py:11-13 Service.start
+   called_by  app.py:23-30 run
+   same_file  app.py:15-16 Service.stop
+   same_file  app.py:23-30 run
+   import     auth.py:1-3 normalize
+   import     m1.py:1-2 None
+   import     m2.py:1-2 None
+   import     m3.py:1-2 None
+   import     m4.py:1-2 None
+```
+
+Known caller to callee pairs asserted in `tests/test_symbol_graph.py::test_known_pairs_appear_in_both_directions` (AC7, 6 pairs, each in both directions): run to helper, run to authenticate, authenticate to normalize, Service.start to Service.stop, checkout to formatTotal (ts), Dispatcher.dispatch to Shipper.ship (java).
+
+**DELTA**: From a function or class slice, `get_related` now returns what it calls, what calls it, a class's members and its base types, ranked before imports and neighbours.
 
 **WITNESS**: [who ran it and when — derived from `memory/event-trace/Txxx.jsonl`, never the
 implementing agent alone]

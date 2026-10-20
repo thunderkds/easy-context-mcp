@@ -96,6 +96,7 @@ class Slice(NamedTuple):
     start_byte: int | None = None
     end_byte: int | None = None
     part: str | None = None
+    refs: str | None = None
 
 
 def chunk_source(path: str, data: bytes, size: int, overlap: int, max_chars: int) -> list[Slice]:
@@ -121,5 +122,5 @@ def chunk_source(path: str, data: bytes, size: int, overlap: int, max_chars: int
         seen[key] = seen.get(key, 0) + 1
         sid = hashlib.sha256(f"{key}\0{seen[key]}".encode()).hexdigest()[:16]
         out.append(Slice(sid, p.start_line, p.end_line, p.text, None, None, p.symbol, p.kind,
-                         p.start_byte, p.end_byte, p.part))
+                         p.start_byte, p.end_byte, p.part, p.refs))
     return out

@@ -17,7 +17,7 @@ from .discovery import (
     resolve_index_dir,
 )
 from .embedding import Embedder, embed_cached, normalize
-from .graph import EDGE_TYPES, file_edges, slice_edges
+from .graph import EDGE_TYPES, file_edges, slice_edges, symbol_edges
 from .store import ProjectStore, search_vectors
 
 PREVIEW_CHARS = 120
@@ -84,7 +84,7 @@ def _visit(
     )
     rows = [
         (c.id, c.start_line, c.end_line, c.text, h, v.tobytes(), c.heading_path,
-         c.heading_level, c.symbol, c.kind, c.start_byte, c.end_byte, c.part)
+         c.heading_level, c.symbol, c.kind, c.start_byte, c.end_byte, c.part, c.refs)
         for c, h, v in zip(chunks, hashes, vectors)
     ]
     store.replace_file(
@@ -121,6 +121,8 @@ def index_path(
             _visit(store, project, embedder, entry, stored.get(entry.path), force, tally)
         gone = [p for p in stored if p.startswith(prefix) and p not in tally.kept]
         store.remove_files(gone)
+        # Callers in unchanged files must see a changed callee: resolve over the whole project.
+        store.replace_symbol_edges(symbol_edges(store.symbol_rows(), store.import_map()))
     return {
         **_envelope(project),
         "status": "done",
@@ -252,9 +254,11 @@ def get_related(
     """1-hop neighbours (FR-006) of one slice or of one file, nearest edge types first.
 
     `path` gives the file's own `import` / `link` edges (both directions). `slice_id` gives
-    those of its file plus its `parent` / `child` / `same_file` slice edges. Each neighbour has
-    path, lines, `edge_type` and (for `import` / `link`) `direction`: "out" when the queried file
-    references it, "in" when it references the queried file.
+    those of its file plus its slice edges. Ranking for a `slice_id`: symbol edges first (`calls`,
+    `called_by`, `contains`, `extends`; matched by name, so a name with several candidates gets
+    no edge), then `parent` / `child` / `same_file`, then the file's `import` / `link` edges.
+    Each neighbour has path, lines, `edge_type` and (for `import` / `link`) `direction`: "out"
+    when the queried file references it, "in" when it references the queried file.
     """
     if (slice_id is None) == (path is None):
         raise ValueError("pass exactly one of slice_id or path")
