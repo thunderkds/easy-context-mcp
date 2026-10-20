@@ -41,6 +41,11 @@
 **Why**: FR-006 / README §7; DDR-0002 needs a slice-to-slice table for the symbol graph.
 **Files**: src/easy_context_mcp/graph.py, src/easy_context_mcp/store.py, src/easy_context_mcp/tools.py, src/easy_context_mcp/server.py
 
+### 2026-10-20 — Symbol graph edges (HUN-17) → see DDR-0002
+**Decision**: Schema v4 adds `slices.refs` (JSON {parent, calls: [[name, receiver]], bases} on a symbol's first slice) and index `edges_dst_slice`. At the end of every index_path, `symbol_edges(store.symbol_rows(), store.import_map())` resolves over all project symbols and `replace_symbol_edges` rewrites only `calls`/`contains`/`extends` rows when they differ (no generation bump); `called_by` is a reverse query, never stored. Resolution: self/this/cls (and bare Java/Kotlin) calls → enclosing class chain; bare calls → same file → imported files → unique project name; receiver calls `x.f()` → only when `x` is a class (→ `X.f`) or an imported module stem (→ its top-level `f`), else no edge (instance-variable calls unresolved by design; Stage 4 found `out.append` → an unrelated `append`). Ambiguity or recursion → no edge. get_related ranks calls, called_by, contains, extends, parent, child, same_file, import, link.
+**Why**: FR-028; persisting refs keeps a no-change reindex cheap (0.03 s on this repo; resolution 0.51 s at 40k symbols) while unchanged callers follow callee changes.
+**Files**: src/easy_context_mcp/graph.py, src/easy_context_mcp/symbols.py, src/easy_context_mcp/store.py, src/easy_context_mcp/tools.py
+
 ### 2026-10-20 — Background jobs + served counters (HUN-10, HUN-12)
 **Decision**: One worker thread per server, FIFO, nice ≥10 on that thread only (Linux nice is per thread; the job embedder is created inside it so ONNX threads inherit nice). Per-project `write.lock` flock held for the whole job; `jobs` table (additive) + in-memory `queued`; stale `running` rows failed when their lock is free. k clamped to 100; matrix cache LRU 4. Remote embedder only https or loopback http, key never in errors. Served counters in a separate per-project `stats.sqlite` (timeout=0, pending delta kept in memory); last job's skip counts in meta `last_tally`.
 **Why**: FR-001a/b, FR-007, FR-008, FR-012, NFR-001a, NFR-006; FastMCP runs sync tools on the event loop, so long work must leave the tool call.

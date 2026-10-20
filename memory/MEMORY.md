@@ -48,3 +48,4 @@
 - [change_risk 0 naming artefact](learnings.md) — verifier pairs tests by file name only.
 - [Graph edges + get_related, schema v3](decisions.md#architecture) — edges table file-level + slice-level rows, get_related slice_id XOR path, stale-edge limit.
 - [Never ruff --fix fixtures](learnings.md) — strips fixture imports; fixtures carry `# ruff: noqa`.
+- [Symbol graph edges, schema v4](decisions.md#architecture) — persisted refs, whole-project resolve per index_path, receiver calls only via class/module, ranking order.
