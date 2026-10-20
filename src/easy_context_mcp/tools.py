@@ -7,7 +7,7 @@ from typing import Any
 
 from . import config
 from .binding import Project
-from .chunking import line_windows, slice_id
+from .chunking import chunk_file, slice_id
 from .discovery import iter_files, read_file, relative_inside, resolve_index_dir
 from .embedding import Embedder, embed_cached, normalize
 from .store import ProjectStore, search_vectors
@@ -38,13 +38,13 @@ def index_path(
             except OSError:  # vanished, unreadable, or swapped for a symlink since discovery
                 skipped += 1
                 continue
-            windows = line_windows(data.decode("utf-8", errors="replace"), size, overlap)
+            windows = chunk_file(rel, data.decode("utf-8", errors="replace"), size, overlap)
             vectors, hashes, n_new = embed_cached(
                 [w[2] for w in windows], embedder, config.embed_cache_file()
             )
             rows = [
-                (slice_id(rel, s, e), s, e, text, h, v.tobytes())
-                for (s, e, text), h, v in zip(windows, hashes, vectors)
+                (slice_id(rel, s, e), s, e, text, h, v.tobytes(), hp, hl)
+                for (s, e, text, hp, hl), h, v in zip(windows, hashes, vectors)
             ]
             store.replace_file(rel, hashlib.sha256(data).hexdigest(), embedder.model_id, rows)
             files += 1

@@ -42,7 +42,13 @@
 
 One slice for the whole document: headings are ignored, no heading path exists.
 
-**AFTER**: [same command, post-change] OR [verbatim excerpt of the new content]
+**AFTER**: 2026-10-20, same Markdown through `chunking.chunk_file("README.md", md, 40, 5)`:
+
+```
+(1, 2, '# Install\nintro', 'Install', 1)
+(3, 8, '## Docker\nrun it\n```sh\n# comment\ndocker run x\n```', 'Install > Docker', 2)
+(9, 10, '## Local\nuv run', 'Install > Local', 2)
+```
 
 **DELTA**: [one sentence — what a user can now do that they could not before]
 
