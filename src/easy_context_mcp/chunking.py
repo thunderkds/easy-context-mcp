@@ -1,7 +1,10 @@
-"""Line-window chunking with overlap and stable slice ids (FR-003)."""
+"""Chunking with stable slice ids (FR-003): code symbols, Markdown headings, line windows."""
 
 import hashlib
 import re
+from typing import NamedTuple
+
+from .symbols import symbol_pieces
 
 
 def line_windows(text: str, size: int, overlap: int) -> list[tuple[int, int, str]]:
@@ -79,3 +82,41 @@ def chunk_file(path: str, text: str, size: int, overlap: int) -> list[Chunk]:
 
 def slice_id(path: str, start_line: int, end_line: int) -> str:
     return hashlib.sha256(f"{path}:{start_line}:{end_line}".encode()).hexdigest()[:16]
+
+
+class Slice(NamedTuple):
+    id: str
+    start_line: int
+    end_line: int
+    text: str
+    heading_path: str | None = None
+    heading_level: int | None = None
+    symbol: str | None = None
+    kind: str | None = None
+    start_byte: int | None = None
+    end_byte: int | None = None
+    part: str | None = None
+
+
+def chunk_source(path: str, data: bytes, size: int, overlap: int, max_chars: int) -> list[Slice]:
+    """Symbol slices for a supported, parseable code file (FR-026); else `chunk_file`.
+
+    A symbol or gap slice id hashes path, kind, symbol, part and text (plus a counter for exact
+    repeats), not its position: editing one function leaves every other slice's id unchanged.
+    Line-window and Markdown ids stay `slice_id(path, start, end)`.
+    """
+    pieces = symbol_pieces(path, data, max_chars)
+    if pieces is None:
+        text = data.decode("utf-8", errors="replace")
+        return [Slice(slice_id(path, s, e), s, e, t, hp, hl)
+                for s, e, t, hp, hl in chunk_file(path, text, size, overlap)]
+    out = []
+    seen: dict[str, int] = {}
+    for p in pieces:
+        key = "\0".join([path, p.kind or "", p.symbol or "", p.part or "",
+                         hashlib.sha256(p.text.encode("utf-8")).hexdigest()])
+        seen[key] = seen.get(key, 0) + 1
+        sid = hashlib.sha256(f"{key}\0{seen[key]}".encode()).hexdigest()[:16]
+        out.append(Slice(sid, p.start_line, p.end_line, p.text, None, None, p.symbol, p.kind,
+                         p.start_byte, p.end_byte, p.part))
+    return out

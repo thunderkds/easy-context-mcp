@@ -64,6 +64,9 @@ def create_app(
     ) -> dict[str, Any]:
         """Find slices by meaning. Returns up to k hits (default 5) with path + line range.
 
+        A query naming a code symbol (`Inventory.add`, `add`) ranks that symbol's slice first;
+        hits from code symbol slices also carry `symbol` and `kind`.
+
         `path_prefix` (relative to the root) keeps only hits under that directory or file.
         Hits that do not fit the response size cap are left out and counted in `dropped`.
         """
