@@ -54,6 +54,10 @@ def max_response_chars() -> int:
     return _int_env("EASY_CONTEXT_MAX_RESPONSE_CHARS", 12000)
 
 
+def max_file_bytes() -> int:
+    return _int_env("EASY_CONTEXT_MAX_FILE_BYTES", 524288)
+
+
 def threads() -> int:
     return _int_env("EASY_CONTEXT_THREADS", 2)
 

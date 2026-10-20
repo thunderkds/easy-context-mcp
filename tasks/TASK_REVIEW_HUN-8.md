@@ -46,9 +46,17 @@ run2 files re-processed: 4 (no size/mtime skip, no files_embedded key)
 
 The `.env`, the binary and the nested-repo file ARE in the index; the unchanged second run re-processes all 4 files.
 
-**AFTER**: [same command, post-change] OR [verbatim excerpt of the new content]
+**AFTER**: same command, post-change:
 
-**DELTA**: [one sentence — what a user can now do that they could not before]
+```
+2026-10-20T08:33:28.433387+00:00
+run1 {'project_id': 'repo-676284f2f998', 'root': '/tmp/tmpto5iidec/repo', 'status': 'done', 'path': '.', 'files': 1, 'files_embedded': 1, 'files_unchanged': 0, 'files_removed': 0, 'skipped': {'binary': 1, 'secret': 1, 'too_large': 0, 'nested_repo': 1, 'unreadable': 0}, 'slices': 1, 'chunks_embedded': 1, 'chunks_cached': 0}
+indexed paths: ['main.py']
+run2 (unchanged) {'project_id': 'repo-676284f2f998', 'root': '/tmp/tmpto5iidec/repo', 'status': 'done', 'path': '.', 'files': 1, 'files_embedded': 0, 'files_unchanged': 1, 'files_removed': 0, 'skipped': {'binary': 1, 'secret': 1, 'too_large': 0, 'nested_repo': 1, 'unreadable': 0}, 'slices': 1, 'chunks_embedded': 0, 'chunks_cached': 0}
+run2 files re-embedded: 0
+```
+
+**DELTA**: `index_path` keeps secrets, binaries and nested repos out of the index, and a rerun of an unchanged repo embeds 0 files.
 
 **WITNESS**: [who ran it and when — derived from `memory/event-trace/Txxx.jsonl`, never the
 implementing agent alone]
