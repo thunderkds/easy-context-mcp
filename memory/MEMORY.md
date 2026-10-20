@@ -31,7 +31,7 @@
 - [easy-verifier gotchas](learnings.md) — harness-lock.json false-positive security hits; change_risk abstains >200 KB diff; task scope abstains for HUN IDs.
 - [Review tooling gotchas](learnings.md) — built-in security-review needs `origin`; shared active_task races; one path per Files-table row.
 - [Linear status does not follow git](learnings.md) — GitHub integration not connected; git_auto_status blocks push status; now git_auto_status false → board_sync push status.
-- [Index layout v1](decisions.md#architecture) — schema v1, slice id sha256(path:start:end)[:16], 60/10 line windows, generation bump per file, all symlinks skipped.
+- [Index layout v1](decisions.md#architecture) — (now v2, HUN-16) schema v1, slice id sha256(path:start:end)[:16], 60/10 line windows, generation bump per file, all symlinks skipped.
 - [FastMCP wire size](learnings.md) — cap measured on indent=2 JSON text; structuredContent duplicates it.
 - [Sub-agents cannot invoke skills](learnings.md) — no Skill tool; Supervisor runs Stage 4 skills.
 - [Linear: no review state](learnings.md) — evidence complete → push status done → pull → merge → push.
