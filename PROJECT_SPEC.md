@@ -125,8 +125,8 @@ Every task gets an independent, no-LLM confidence score from the Easy family ver
 | HUN-5 | Spikes: offline FastEmbed load, flock+WAL across container/host, ${PWD} in .mcp.json headers | Done | Common-Infrastructure-Agent | C1 | Low | P0 |
 | HUN-6 | Skeleton: package, stdio + streamable-HTTP server, project binding, empty list_indexes | Done | Backend-Implementer | C2 | High | P0 |
 | HUN-7 | First full path: index_path → search_semantic → get_slice with caps | Done | Backend-Implementer | C3 | High | P0 |
-| HUN-8 | File hygiene: binaries, secrets, size, nested .git, hash skip, deletions | Todo | Backend-Implementer | C2 | High | P0 |
-| HUN-9 | Markdown heading chunks, stable slice ids, non-UTF-8 files | Todo | Backend-Implementer | C1 | Low | P1 |
+| HUN-8 | File hygiene: binaries, secrets, size, nested .git, hash skip, deletions | In Progress | Backend-Implementer | C2 | High | P0 |
+| HUN-9 | Markdown heading chunks, stable slice ids, non-UTF-8 files | In Progress | Backend-Implementer | C1 | Low | P1 |
 | HUN-10 | Background jobs: non-blocking index_path, progress/ETA, single writer, low priority | Todo | Backend-Implementer | C3 | Medium | P0 |
 | HUN-11 | Graph edges + get_related (1-hop) | Todo | Backend-Implementer | C2 | Medium | P1 |
 | HUN-12 | Stats: get_stats served counters, final list_indexes fields | Todo | Backend-Implementer | C1 | Low | P1 |
