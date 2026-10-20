@@ -92,6 +92,22 @@ def test_missing_grammar_wheel_falls_back_to_line_windows(monkeypatch):
     assert symbol_pieces("a.py", b"def f():\n    pass\n", 2000) is None
 
 
+def test_grammar_abi_mismatch_falls_back_to_line_windows(monkeypatch):
+    import tree_sitter
+
+    def refuse(_ptr):
+        raise ValueError("Incompatible Language version 99")
+
+    monkeypatch.setattr(tree_sitter, "Language", refuse)
+    _language.cache_clear()
+    try:
+        assert symbol_pieces("a.py", b"def f():\n    pass\n", 2000) is None
+        out = chunk_source("a.py", b"def f():\n    pass\n", 60, 10, 2000)
+        assert [(s.id, s.symbol) for s in out] == [(slice_id("a.py", 1, 2), None)]
+    finally:
+        _language.cache_clear()
+
+
 # --- AC2: Python -------------------------------------------------------------------------------
 
 
@@ -280,6 +296,21 @@ def test_unsupported_extension_uses_line_windows():
     assert symbol_pieces("Makefile", b"all:\n\techo\n", 2000) is None
     out = chunk_source("x.rb", b"def f\nend\n", 60, 10, 2000)
     assert [(s.id, s.symbol) for s in out] == [(slice_id("x.rb", 1, 2), None)]
+
+
+def test_deeply_nested_file_falls_back_and_run_continues(repo, home):
+    """Stage 4 P1: 1500 nested Java classes raised RecursionError and aborted index_path."""
+    deep = ("class A {\n" + "".join(f"class B{i} {{\n" for i in range(1500))
+            + "}\n" * 1501).encode()
+    out = chunk_source("Deep.java", deep, 60, 10, 2000)
+    assert out and all(s.symbol is None and s.start_byte is None for s in out)
+    (repo / "Deep.java").write_bytes(deep)
+    p = project(repo)
+    res = tools.index_path(p, ".", embedder=FakeEmbedder())
+    assert res["status"] == "done"
+    assert db(home, p, "SELECT count(*) FROM slices WHERE path = 'Deep.java'")[0][0] > 0
+    top = tools.search_semantic(p, "Inventory.add", embedder=FakeEmbedder())["hits"][0]
+    assert top["symbol"] == "Inventory.add"
 
 
 # --- AC8: stable ids ---------------------------------------------------------------------------

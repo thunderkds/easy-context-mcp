@@ -13,8 +13,11 @@ supported, the grammar wheel is missing, or the parse has an error outside any d
 
 import functools
 import importlib
+import logging
 import re
 from typing import NamedTuple
+
+log = logging.getLogger(__name__)
 
 
 class Piece(NamedTuple):
@@ -78,12 +81,14 @@ _JS_FUNCTION_VALUES = {"arrow_function", "function_expression", "function",
 
 @functools.cache
 def _language(module: str, func: str):
-    """The tree-sitter Language, or None when the binding or grammar wheel is not installed."""
+    """The tree-sitter Language, or None when the binding or grammar wheel is not installed or
+    its ABI is one the installed tree-sitter cannot load (cached: logged once per grammar)."""
     try:
         from tree_sitter import Language
 
         return Language(getattr(importlib.import_module(module), func)())
-    except ImportError:
+    except (ImportError, ValueError) as exc:
+        log.warning("grammar %s.%s unavailable (%s): line windows instead", module, func, exc)
         return None
 
 

@@ -105,7 +105,10 @@ def chunk_source(path: str, data: bytes, size: int, overlap: int, max_chars: int
     repeats), not its position: editing one function leaves every other slice's id unchanged.
     Line-window and Markdown ids stay `slice_id(path, start, end)`.
     """
-    pieces = symbol_pieces(path, data, max_chars)
+    try:
+        pieces = symbol_pieces(path, data, max_chars)
+    except RecursionError:  # absurdly deep nesting: this file falls back, the run goes on
+        pieces = None
     if pieces is None:
         text = data.decode("utf-8", errors="replace")
         return [Slice(slice_id(path, s, e), s, e, t, hp, hl)
