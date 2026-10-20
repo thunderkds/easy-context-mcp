@@ -130,9 +130,19 @@ for query, file, qual in QUERIES:
 
 </details>
 
-**AFTER**: [same command, post-change] OR [verbatim excerpt of the new content]
+**AFTER**: captured 2026-10-20T08:59:00Z on branch `hun-16-symbols` (implementation, tree-sitter 0.25.2), same command and script as BEFORE:
 
-**DELTA**: [one sentence — what a user can now do that they could not before]
+```
+captured 2026-10-20T08:59:00Z  k=10  embedder=all-MiniLM-L6-v2 (FastEmbed)
+indexed files=6 slices=58
+'Inventory.add_item'   symbol inventory.py:19-20  -> rank 1: inventory.py:19-20  whole symbol  slice=2 lines for a 2-line symbol symbol='Inventory.add_item' kind='method'
+'ship_order'           symbol inventory.py:25-29  -> rank 1: inventory.py:25-29  whole symbol  slice=5 lines for a 5-line symbol symbol='Inventory.ship_order' kind='method'
+'needs_reorder'        symbol inventory.py:31-32  -> rank 1: inventory.py:31-32  whole symbol  slice=2 lines for a 2-line symbol symbol='Inventory.needs_reorder' kind='method'
+'Item'                 symbol inventory.py:6-12  -> rank 1: inventory.py:6-12  whole symbol  slice=7 lines for a 7-line symbol symbol='Item' kind='class'
+'verify_password'      symbol auth.py:17-20  -> rank 1: auth.py:17-20  whole symbol  slice=4 lines for a 4-line symbol symbol='verify_password' kind='function'
+```
+
+**DELTA**: a query that names a symbol now returns exactly that function / method / class as hit 1 (2-7 lines instead of a 20-60-line window), with `symbol` and `kind` on the hit.
 
 **WITNESS**: [who ran it and when — derived from `memory/event-trace/Txxx.jsonl`, never the
 implementing agent alone]
