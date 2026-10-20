@@ -293,3 +293,11 @@ def test_v2_index_is_rebuilt_with_edges_table(repo, home):
         related(p, path="app.py")  # reads fail clearly until a rebuild
     tools.index_path(p, ".", embedder=FakeEmbedder())
     assert ("app.py", "auth.py", "import") in file_level(home, p)
+
+
+def test_oversized_first_neighbour_is_shortened_not_a_crash(repo, monkeypatch):
+    _, p = repo
+    monkeypatch.setenv("EASY_CONTEXT_MAX_RESPONSE_CHARS", "400")
+    out = related(p, path="auth.py")
+    assert len(out["related"]) >= 1 and out["related"][0]["truncated"] is True
+    assert tools._size(out) <= 400

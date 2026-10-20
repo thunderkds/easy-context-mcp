@@ -214,8 +214,9 @@ def _fit_response(
         if not kept:
             hit = {**hit, "truncated": True}
             response = {**head, key: [hit], "dropped": len(hits) - 1}
-            while hit["text"] and _size(response) > cap:
-                hit["text"] = hit["text"][: len(hit["text"]) - max(_size(response) - cap, 1)]
+            field = "text" if "text" in hit else "preview"  # related items carry only a preview
+            while hit[field] and _size(response) > cap:
+                hit[field] = hit[field][: len(hit[field]) - max(_size(response) - cap, 1)]
             kept.append(hit)
         break
     return {**head, key: kept, "dropped": len(hits) - len(kept)}
