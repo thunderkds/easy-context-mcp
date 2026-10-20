@@ -31,10 +31,21 @@
 - [easy-verifier gotchas](learnings.md) — harness-lock.json false-positive security hits; change_risk abstains >200 KB diff; task scope abstains for HUN IDs.
 - [Review tooling gotchas](learnings.md) — built-in security-review needs `origin`; shared active_task races; one path per Files-table row.
 - [Linear status does not follow git](learnings.md) — GitHub integration not connected; git_auto_status blocks push status; now git_auto_status false → board_sync push status.
-- [Index layout v1](decisions.md#architecture) — schema v1, slice id sha256(path:start:end)[:16], 60/10 line windows, generation bump per file, all symlinks skipped.
+- [Index layout v1](decisions.md#architecture) — (now v2, HUN-16) schema v1, slice id sha256(path:start:end)[:16], 60/10 line windows, generation bump per file, all symlinks skipped.
 - [FastMCP wire size](learnings.md) — cap measured on indent=2 JSON text; structuredContent duplicates it.
 - [Sub-agents cannot invoke skills](learnings.md) — no Skill tool; Supervisor runs Stage 4 skills.
 - [Linear: no review state](learnings.md) — evidence complete → push status done → pull → merge → push.
 - [File hygiene policy](decisions.md#architecture) — skip reasons object, secret basename list, binary sniff, capped read, size+mtime→hash change detection, removal.
-- [Peer session shares checkout](learnings.md) — easy-context-mcp-89 commits on main; owns HUN-16/17; never `git add -A`; stage by name.
+- [Peer session shares checkout](learnings.md) — easy-context-mcp-89 commits on main; owns HUN-11/16/17; never `git add -A`; stage by name.
 - [Merge gate blocks merge-tree too](learnings.md) — set Done first; conflicts go back to the task's agent.
+- [Code symbol slices, schema v2 (DDR-0002)](decisions.md#architecture) — tree-sitter py/js/ts/java/kt symbol slices, content ids, FTS5 name bonus +2/+1, v1 index rebuilt.
+- [tree-sitter facts](learnings.md) — 0.26.0 segfaults (pin <0.26); Kotlin one-line bodies fall back; +10 MiB; ~5x slices.
+- [easy-verifier over HTTP](learnings.md) — JSON-RPC to :8766 when tools not loaded; write_report findings schema strict.
+- [Background jobs + counters](decisions.md#architecture) — worker thread nice 10, flock per project, jobs table, k≤100, https-only remote embedder, stats.sqlite counters.
+- [Docker packaging](decisions.md#infrastructure) — 464 MB image, model baked, service 127.0.0.1:8767 / stdio, identical-path mounts, create_host_path false, workspace ceiling.
+- [FastMCP sync on loop; nice per thread](learnings.md) — long sync tools block all calls; verify runtime claims before guides.
+- [create_host_path default](learnings.md) — creates root-owned dirs; use false.
+- [change_risk 0 naming artefact](learnings.md) — verifier pairs tests by file name only.
+- [Graph edges + get_related, schema v3](decisions.md#architecture) — edges table file-level + slice-level rows, get_related slice_id XOR path, stale-edge limit.
+- [Never ruff --fix fixtures](learnings.md) — strips fixture imports; fixtures carry `# ruff: noqa`.
+- [Symbol graph edges, schema v4](decisions.md#architecture) — persisted refs, whole-project resolve per index_path, receiver calls only via class/module, ranking order.

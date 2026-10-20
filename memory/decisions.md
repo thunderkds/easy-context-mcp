@@ -23,6 +23,7 @@
 **Decision**: `index.sqlite` schema v1 (`PRAGMA user_version=1`): meta(model_id, generation), files(path, sha256), slices(id, path, start/end_line, text, chunk_hash, float32 L2-normalised vector). Slice id = sha256("path:start:end")[:16]; line windows 60 lines / 10 overlap (env EASY_CONTEXT_CHUNK_LINES / _OVERLAP); one transaction per file bumps generation; search opens read-only and never creates an index; all symlinks skipped (stricter than FR-010).
 **Why**: DDR-0001 one-file-per-project; generation counter invalidates the in-memory numpy matrix.
 **Update (HUN-8, HUN-9)**: still user_version 1; additive nullable columns added by guarded `ALTER TABLE ... ADD COLUMN` in `open_write` — files(size, mtime_ns) and slices(heading_path, heading_level). Migration-safety GO for both (up/old-code/down/up dry run on a real 528-slice index).
+**Superseded (HUN-16)**: schema v2 replaces the in-place ALTERs — any older index is dropped and rebuilt; see "Code symbol slices + symbol-name match (HUN-16)".
 **Files**: src/easy_context_mcp/store.py, src/easy_context_mcp/chunking.py, src/easy_context_mcp/tools.py, src/easy_context_mcp/discovery.py
 
 ### 2026-10-20 — File hygiene policy (HUN-8)
@@ -30,7 +31,32 @@
 **Why**: FR-001/FR-002/FR-024; Stage 4 security review added the extra credential names and the bounded read.
 **Files**: src/easy_context_mcp/discovery.py, src/easy_context_mcp/tools.py, src/easy_context_mcp/store.py
 
+### 2026-10-20 — Code symbol slices + symbol-name match (HUN-16) → see DDR-0002
+**Decision**: Index schema v2 (`PRAGMA user_version=2`): slices gain nullable symbol, kind, start_byte, end_byte, part; FTS5 table `symbol_fts` kept in step by triggers. Older index → dropped and rebuilt in one transaction by the next index_path (vectors come back from the embed cache); reads of an old index raise "Run index_path to rebuild it". Python/JS/TS/TSX/Java/Kotlin files → one slice per function/class/method/interface (+ gap slices); symbol and gap slice ids = sha256(path, kind, symbol, part, text hash, repeat counter)[:16] (PRD FR-003, AC8); line-window and Markdown ids unchanged. Search score = cosine + 2.0 (query names the symbol or a dotted tail) or + 1.0 (prefix). Parse failure, RecursionError or missing/ABI-incompatible grammar → line windows for that file.
+**Why**: User (2026-10-20): AST symbol + graph retrieval beats vector search over line windows for code; option 1 (inside the six tools).
+**Files**: src/easy_context_mcp/symbols.py, src/easy_context_mcp/chunking.py, src/easy_context_mcp/store.py, src/easy_context_mcp/tools.py, pyproject.toml
+
+### 2026-10-20 — Graph edges + get_related (HUN-11)
+**Decision**: Index schema v3 adds `edges(src_path FK files ON DELETE CASCADE, dst_path, edge_type, src_slice, dst_slice)`. File-level rows (`import` py/js/ts by regex, `link` Markdown) have NULL slice ids; the neighbour is the target file's first slice, looked up at query time; `dst_path` has no FK (target may be indexed later), `remove_files` deletes by dst_path. Slice-level rows (`parent`/`child` from heading levels, `same_file` neighbours by start_line, degree ≤ 2) carry both slice ids — HUN-17 adds calls/called_by/contains/extends the same way. get_related(slice_id XOR path, limit=10): path → the file's import/link edges both directions (`direction` out/in); slice_id → those plus its slice edges; ranked import, link, parent, child, same_file; response cap via `_fit_response(key="related")`. Edges are computed only when a file is (re)processed (stale until importer changes or force).
+**Why**: FR-006 / README §7; DDR-0002 needs a slice-to-slice table for the symbol graph.
+**Files**: src/easy_context_mcp/graph.py, src/easy_context_mcp/store.py, src/easy_context_mcp/tools.py, src/easy_context_mcp/server.py
+
+### 2026-10-20 — Symbol graph edges (HUN-17) → see DDR-0002
+**Decision**: Schema v4 adds `slices.refs` (JSON {parent, calls: [[name, receiver]], bases} on a symbol's first slice) and index `edges_dst_slice`. At the end of every index_path, `symbol_edges(store.symbol_rows(), store.import_map())` resolves over all project symbols and `replace_symbol_edges` rewrites only `calls`/`contains`/`extends` rows when they differ (no generation bump); `called_by` is a reverse query, never stored. Resolution: self/this/cls (and bare Java/Kotlin) calls → enclosing class chain; bare calls → same file → imported files → unique project name; receiver calls `x.f()` → only when `x` is a class (→ `X.f`) or an imported module stem (→ its top-level `f`), else no edge (instance-variable calls unresolved by design; Stage 4 found `out.append` → an unrelated `append`). Ambiguity or recursion → no edge. get_related ranks calls, called_by, contains, extends, parent, child, same_file, import, link.
+**Why**: FR-028; persisting refs keeps a no-change reindex cheap (0.03 s on this repo; resolution 0.51 s at 40k symbols) while unchanged callers follow callee changes.
+**Files**: src/easy_context_mcp/graph.py, src/easy_context_mcp/symbols.py, src/easy_context_mcp/store.py, src/easy_context_mcp/tools.py
+
+### 2026-10-20 — Background jobs + served counters (HUN-10, HUN-12)
+**Decision**: One worker thread per server, FIFO, nice ≥10 on that thread only (Linux nice is per thread; the job embedder is created inside it so ONNX threads inherit nice). Per-project `write.lock` flock held for the whole job; `jobs` table (additive) + in-memory `queued`; stale `running` rows failed when their lock is free. k clamped to 100; matrix cache LRU 4. Remote embedder only https or loopback http, key never in errors. Served counters in a separate per-project `stats.sqlite` (timeout=0, pending delta kept in memory); last job's skip counts in meta `last_tally`.
+**Why**: FR-001a/b, FR-007, FR-008, FR-012, NFR-001a, NFR-006; FastMCP runs sync tools on the event loop, so long work must leave the tool call.
+**Files**: src/easy_context_mcp/jobs.py, src/easy_context_mcp/tools.py, src/easy_context_mcp/store.py, src/easy_context_mcp/embedding.py
+
 ## Infrastructure
+
+### 2026-10-20 — Docker packaging (HUN-13)
+**Decision**: Image `temvar/easy-context-mcp:0.1.0` (464 MB) with FastEmbed model baked at /opt/fastembed (`FASTEMBED_CACHE_PATH`, `HF_HUB_OFFLINE=1`). compose `service` (streamable HTTP 127.0.0.1:8767, network host, cpus 2, mem 2g, restart unless-stopped) and `stdio` (network none); workspace RO + ~/.easy-context RW at identical host paths with `create_host_path: false`; runs as host UID/GID; read_only, cap_drop ALL, no-new-privileges, tmpfs /tmp. Binding rejects roots outside `EASY_CONTEXT_WORKSPACE`; git walk never climbs above it. Smoke: `bash scripts/smoke_docker.sh`.
+**Why**: FR-017–FR-019, NFR-001a, NFR-005; easy-verifier `scorer` convention.
+**Files**: Dockerfile, compose.yaml, scripts/smoke_docker.sh, scripts/download_model.py, src/easy_context_mcp/binding.py, src/easy_context_mcp/config.py
 
 ### 2026-10-20 — easy-verifier confidence score on every task (advisory)
 **Decision**: Stage 4 add-on: score each task with the shared easy-verifier container (127.0.0.1:8766) at `changes` (main...HEAD) and `task` scope, write its report, attach numbers + report to TASK_REVIEW Evidence and the html-report. Advisory, not a gate. Worktrees must stay under ~/workspace (container mount).

@@ -69,14 +69,15 @@ def write_lock(project_id: str, wait: float = 0.0) -> Iterator[None]:
 
 
 def _read(project_id: str, fn):
-    """fn(store) on a read-only connection; None if there is no readable index."""
+    """fn(store) on a read-only connection; None if there is no readable index (missing,
+    being created, or an older schema version that the next job rebuilds)."""
     try:
         store = ProjectStore.open_read(config.index_file(project_id))
         if store is None:
             return None
         with closing(store):
             return fn(store)
-    except sqlite3.Error:
+    except (sqlite3.Error, ValueError):
         return None
 
 

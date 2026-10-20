@@ -71,6 +71,9 @@ def create_app(
     ) -> dict[str, Any]:
         """Find slices by meaning. Returns up to k hits (default 5) with path + line range.
 
+        A query naming a code symbol (`Inventory.add`, `add`) ranks that symbol's slice first;
+        hits from code symbol slices also carry `symbol` and `kind`.
+
         `path_prefix` (relative to the root) keeps only hits under that directory or file.
         Hits that do not fit the response size cap are left out and counted in `dropped`.
         k is capped at 100. `indexing: true` means a job is running: results come from the
@@ -88,10 +91,26 @@ def create_app(
         return tools.get_slice(project, slice_id, indexing=runner.indexing(project))
 
     @app.tool()
-    def get_related(ctx: Context, slice_id: str, root: str | None = None) -> dict[str, Any]:
-        """Fetch 1-hop related slices."""
-        _bind(ctx, root, service_mode)
-        not_implemented("get_related")
+    def get_related(
+        ctx: Context,
+        slice_id: str | None = None,
+        path: str | None = None,
+        limit: int = 10,
+        root: str | None = None,
+    ) -> dict[str, Any]:
+        """Fetch 1-hop related slices of one slice (`slice_id`) or one file (`path`); pass one.
+
+        Edge types: `import` / `link` (between files, with `direction` out/in; the neighbour is
+        the other file's first slice), `parent` / `child` (Markdown headings) and `same_file`
+        (neighbouring slices). For a function or class slice: `calls`, `called_by`, `contains`
+        (a class's members) and `extends` (base types), matched by name (a name with several
+        candidates gets no edge) and ranked first. Up to `limit` (default 10) neighbours with
+        path + line range; extra ones are counted in `dropped`.
+        """
+        project = _bind(ctx, root, service_mode)
+        return tools.get_related(
+            project, slice_id, path, limit, indexing=runner.indexing(project)
+        )
 
     @app.tool()
     def list_indexes(ctx: Context, root: str | None = None) -> dict[str, Any]:
