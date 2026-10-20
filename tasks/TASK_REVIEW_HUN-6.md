@@ -14,16 +14,16 @@
 
 | Check | Result | Notes / output snippet |
 |-------|--------|------------------------|
-| **New test(s) cover Acceptance Criteria (file paths pasted)** | ☐ pass / ☐ fail | [test file path(s) — required before Done] |
-| Verification command run | ☐ pass / ☐ fail | [paste actual output] |
-| Negative cases hold | ☐ pass / ☐ fail | |
-| verify | ☐ pass / ☐ fail / ☐ N/A | [what was observed — must literally state "pass" or "fail" here too, e.g. "skill run, feature confirmed working — pass": the merge gate scans this Notes column for the word "pass", not just the Result column] |
-| Review scope bounded to the change's blast radius (affected set, not whole repo) | ☐ pass / ☐ fail | [what was reviewed vs. skipped, and why] |
-| Full smoke suite still green (no regression) | ☐ pass / ☐ fail | |
-| easy-verifier confidence (advisory, PROJECT_SPEC Stage 4 Add-on) | overall: — · change_risk: — | [contributors, abstentions, report path — filled by Supervisor] |
-| **UI: Visual regression (diff or verdict pasted)** | ☐ pass / ☐ fail / ☐ N/A | [screenshot path or LLM verdict — required for UI tasks, Hard-Stop Gate 6] |
-| **UI: Design-system compliance (tokens/colors/typography verified)** | ☐ pass / ☐ fail / ☐ N/A | [method used + output] |
-| **UI: Responsiveness at target viewports** | ☐ pass / ☐ fail / ☐ N/A | [viewports tested, any overflow findings] |
+| **New test(s) cover Acceptance Criteria (file paths pasted)** | ☑ pass | tests/test_binding.py (18 tests), tests/test_server.py (9 tests): AC1 six tools, AC2 loopback bind, AC3 header binding, AC4 conflict/neither errors, AC5 stdio cwd/env, AC6 project-id stability, AC7 bad roots create nothing |
+| Verification command run | ☑ pass | 2026-10-20T07:54:02Z `uv run pytest -q` → 27 passed, 6 warnings in 5.37s (Supervisor re-run); `uv run ruff check src tests` → All checks passed! |
+| Negative cases hold | ☑ pass | conflicting roots, no root in service mode, relative/missing root, port in use, forged Host header (421) |
+| verify | ☑ pass | Supervisor ran `easy-context-mcp --transport streamable-http` live: MCP initialize 200, forged Host 421 — pass |
+| Review scope bounded to the change's blast radius (affected set, not whole repo) | ☑ pass | reviewed src/easy_context_mcp/*, tests/*, pyproject.toml; uv.lock skimmed only (generated) |
+| Full smoke suite still green (no regression) | ☑ pass | full suite = 27 passed (first product code; no prior suite) |
+| easy-verifier confidence (advisory, PROJECT_SPEC Stage 4 Add-on) | overall: 70 · change_risk: abstained | overall 70 (rated: architecture 100, code-quality 87, security 30, test-strategy 65; 9 of 13 abstained) · change_risk: abstained (below_coverage_floor: diff > 200 KB because of uv.lock). Security 30 is a false positive: hits are sha256 values in framework file .claude/harness-lock.json, outside this change. Report: reports/easy-verifier_HUN-6_20261020T145522.html |
+| **UI: Visual regression (diff or verdict pasted)** | ☐ N/A | pure backend task, no UI |
+| **UI: Design-system compliance (tokens/colors/typography verified)** | ☐ N/A | pure backend task, no UI |
+| **UI: Responsiveness at target viewports** | ☐ N/A | pure backend task, no UI |
 
 ---
 
@@ -44,9 +44,21 @@ error: Failed to spawn: `easy-context-mcp`
 exit=2
 ```
 
-**AFTER**: [same command, post-change] OR [verbatim excerpt of the new content]
+**AFTER**:
 
-**DELTA**: [one sentence — what a user can now do that they could not before]
+```
+$ date -u; uv run easy-context-mcp --help
+2026-10-20T07:52:59Z
+usage: easy-context-mcp [-h] [--transport {stdio,streamable-http}]
 
-**WITNESS**: [who ran it and when — derived from `memory/event-trace/Txxx.jsonl`, never the
-implementing agent alone]
+Easy Context MCP server
+
+options:
+  -h, --help            show this help message and exit
+  --transport {stdio,streamable-http}
+exit=0
+```
+
+**DELTA**: An MCP client can now connect to easy-context over stdio or loopback HTTP, and every call is bound to exactly one project root (header, `root` argument or cwd, walked up to the git root).
+
+**WITNESS**: Supervisor (claude-opus-5-5), 2026-10-20T07:52:59Z AFTER capture and 07:54:02Z test re-run; trace memory/event-trace/HUN-6.jsonl (note: shared state file raced with HUN-5 — some HUN-5 calls are tagged HUN-6).
