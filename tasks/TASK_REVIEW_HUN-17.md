@@ -14,15 +14,19 @@
 
 | Check | Result | Notes / output snippet |
 |-------|--------|------------------------|
-| **New test(s) cover Acceptance Criteria (file paths pasted)** | ☐ pass / ☐ fail | [test file path(s) — required before Done] |
-| Verification command run | ☐ pass / ☐ fail | [paste actual output] |
-| Negative cases hold | ☐ pass / ☐ fail | |
-| verify | ☐ pass / ☐ fail / ☐ N/A | [what was observed — must literally state "pass" or "fail" here too, e.g. "skill run, feature confirmed working — pass": the merge gate scans this Notes column for the word "pass", not just the Result column] |
-| Review scope bounded to the change's blast radius (affected set, not whole repo) | ☐ pass / ☐ fail | [what was reviewed vs. skipped, and why] |
-| Full smoke suite still green (no regression) | ☐ pass / ☐ fail | |
-| **UI: Visual regression (diff or verdict pasted)** | ☐ pass / ☐ fail / ☐ N/A | [screenshot path or LLM verdict — required for UI tasks, Hard-Stop Gate 6] |
-| **UI: Design-system compliance (tokens/colors/typography verified)** | ☐ pass / ☐ fail / ☐ N/A | [method used + output] |
-| **UI: Responsiveness at target viewports** | ☐ pass / ☐ fail / ☐ N/A | [viewports tested, any overflow findings] |
+| **New test(s) cover Acceptance Criteria (file paths pasted)** | ☑ pass | tests/test_symbol_graph.py (new, 24 tests: AC1 resolution order, AC2 self/this/implicit member calls, AC3 ambiguous/builtin/recursive → no edge, AC4 called_by, AC5 contains/extends py/ts/java/kt, AC6 1-hop/caps/removal/freshness of unchanged callers, AC7 six known pairs both directions, AC8 symbol edges outrank imports under small limit, Stage 4 regression `test_receiver_calls_resolve_only_through_a_class_or_an_imported_module`); fixture tests/fixtures/calls_repo/**; tests/test_graph.py ranking assertion; tests/test_hygiene.py schema 4 |
+| Verification command run | ☑ pass | 2026-10-20T10:33:07Z (Supervisor re-run at 8c5b846) `FASTEMBED_CACHE_PATH=/tmp/spike1/cache uv run pytest -q` → 259 passed, 6 warnings in 9.92s; `uv run ruff check src tests` → All checks passed! |
+| Negative cases hold | ☑ pass | ambiguous names, builtins, recursion, unresolved bases → no edge; `out.append(x)` with a unique project `append` → no edge; instance receiver `s.load()` → no edge; deleted callee → edge removed; new duplicate makes a unique target ambiguous → edge removed |
+| verify | ☑ pass | Supervisor end-to-end 2026-10-20T10:33Z, real model, HUN-17 worktree: index_path → done, 253 files, 2308 slices, 88.6s; no-change reindex 0.03s, 0 embedded; get_related(symbol_edges) → called_by index_path + test; get_related(ProjectStore) → contains its methods; 15 random calls edges from src/ all correct; no edge into `append` — pass. Resolution pass 0.51s for 40,811 symbols (site-packages). migration-safety dry run v3→v4 — pass |
+| Review scope bounded to the change's blast radius (affected set, not whole repo) | ☑ pass | symbols.py, graph.py, chunking.py, store.py, tools.py, server.py (tool description), tests; callers index_path, get_related. lane_check: C2, 23 files, 685 lines, EXCEEDS — 14 files are small fixtures; store/tools/chunking 'unpredicted' is the one-path-per-cell lane_check limit |
+| Full smoke suite still green (no regression) | ☑ pass | 259 passed incl. HUN-6/7/8/9/11/16 suites |
+| Code review (Stage 4) | ☑ pass | P1 receiver calls fell through to the unique-project step (`out.append` → .claude/hooks/lib/board/outbox.py::append) — fixed 8c5b846; trade-off: instance-variable calls get no edge (type unknown). P2 open: symbols.py max CCN 40 (was 36, HUN-16) — recommend a refactor task. P3: Kotlin extension names approximate in contains/self logic. Report: reports/code-review_hun-17-symbol-graph_20261020T173600.html |
+| Security review (manual; built-in needs `origin`) | ☑ pass | refs JSON produced by our own parser and read back with json.loads; SQL placeholders and constant edge-type lists; no new file reads; resolution is O(symbols) per index_path (0.51s at 40k symbols). Report: reports/security-review_hun-17-symbol-graph_20261020T173600.html |
+| migration-safety | ☑ pass | GO: user_version 3→4 adds slices.refs + edges_dst_slice; older index dropped+rebuilt in one transaction; older server refuses v4; down = delete index dir; Supervisor scratch-DB dry run |
+| easy-verifier confidence (advisory, PROJECT_SPEC Stage 4 Add-on) | overall: 60 · change_risk: 0 | overall 60 (rated: architecture 100, requirement-fidelity 67, code-quality 33, security 18, test-strategy 75, blast-radius 65, reliability 64; 6 of 13 abstained). change_risk 0 (feature, confirmed) = new_code_without_test_share 0.5: name-paired test lookup (no test_chunking/test_store/test_symbols-by-name pairing for graph changes) — known artefact (memory/learnings.md); tests/test_symbol_graph.py covers them. code-quality 33 = max CCN 40 in symbols.py (real, P2) + CCN>10 share 0.17 + no format config. security 18 = known false positives. Task scope: requirement-fidelity 67, 12 of 13 abstained. Report: reports/easy-verifier_HUN-17_20261020T173511.html |
+| **UI: Visual regression (diff or verdict pasted)** | ☐ N/A | pure backend task, no UI |
+| **UI: Design-system compliance (tokens/colors/typography verified)** | ☐ N/A | pure backend task, no UI |
+| **UI: Responsiveness at target viewports** | ☐ N/A | pure backend task, no UI |
 
 ---
 
@@ -190,5 +194,4 @@ Known caller to callee pairs asserted in `tests/test_symbol_graph.py::test_known
 
 **DELTA**: From a function or class slice, `get_related` now returns what it calls, what calls it, a class's members and its base types, ranked before imports and neighbours.
 
-**WITNESS**: [who ran it and when — derived from `memory/event-trace/Txxx.jsonl`, never the
-implementing agent alone]
+**WITNESS**: Supervisor re-ran the suite (2026-10-20T10:33:07Z) and an end-to-end real-model run with a 15-edge precision sample (10:33Z) independently of the implementing agent; trace `memory/event-trace/HUN-17.jsonl`.
