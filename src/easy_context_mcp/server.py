@@ -10,7 +10,7 @@ from mcp.server.fastmcp import Context, FastMCP
 from . import config, tools
 from .binding import Project, resolve_project
 from .embedding import Embedder, make_embedder
-from .jobs import JobRunner
+from .jobs import JobRunner, Refresher
 
 TOOL_NAMES = (
     "index_path",
@@ -38,6 +38,8 @@ def create_app(
     # thread, so its ONNX threads run at nice 10 while queries use the default-priority one.
     runner = JobRunner(embedder or make_embedder())
     embedder = embedder or make_embedder()
+    if service_mode and (seconds := config.refresh_seconds()):  # 0 turns the refresh off
+        Refresher(runner, seconds).start()
     app = FastMCP(
         "easy-context",
         host=config.HOST,
@@ -162,6 +164,7 @@ def main(argv: list[str] | None = None) -> None:
         return
     try:
         port = config.port()
+        config.refresh_seconds()
     except ValueError as exc:
         sys.exit(f"easy-context-mcp: {exc}")
     if not _port_is_free(port):

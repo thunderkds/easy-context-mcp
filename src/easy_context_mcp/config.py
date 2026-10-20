@@ -64,6 +64,11 @@ def max_file_bytes() -> int:
     return _int_env("EASY_CONTEXT_MAX_FILE_BYTES", 524288)
 
 
+def refresh_seconds() -> int:
+    """Seconds between timed refresh cycles in service mode; 0 turns the refresh off (FR-001c)."""
+    return _int_env("EASY_CONTEXT_REFRESH_SECONDS", 300, minimum=0)
+
+
 def threads() -> int:
     return _int_env("EASY_CONTEXT_THREADS", 2)
 

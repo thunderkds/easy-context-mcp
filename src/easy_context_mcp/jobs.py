@@ -1,6 +1,7 @@
 """Background index jobs (FR-001a, FR-007, NFR-001a, NFR-006).
 
-One worker thread per server runs one job at a time, in submit order. The worker lowers its own
+One worker thread per server runs one job at a time: user jobs first, then timed refresh jobs
+(FR-001c), each class in submit order. The worker lowers its own
 priority to nice 10. On Linux nice is per thread, so the threads that serve tool calls keep their
 priority; the job embedder is first used inside the worker, so the ONNX threads it starts inherit
 nice 10 too. (On macOS nice is per process: the whole stdio process runs at nice 10.)
@@ -12,9 +13,12 @@ are written only by the lock holder; a `queued` job lives only in this server's 
 """
 
 import fcntl
+import itertools
 import json
+import logging
 import os
 import queue
+import shutil
 import socket
 import sqlite3
 import threading
@@ -28,8 +32,10 @@ from typing import Any
 
 from . import config, tools
 from .binding import Project
-from .embedding import Embedder
-from .store import JOB_COLUMNS, ProjectStore
+from .embedding import Embedder, gc_embed_cache
+from .store import JOB_COLUMNS, ProjectStore, read_root, referenced_hashes
+
+log = logging.getLogger(__name__)
 
 ACTIVE = ("queued", "running")
 DEFAULT_FILES_PER_SECOND = 5.0  # first-run estimate (HUN-10: ~4.5 files/s, real model, 2 threads)
@@ -38,6 +44,8 @@ KEEP_JOBS = 20  # job rows kept per index
 PROGRESS_EVERY = 1.0  # seconds between progress writes to the jobs row
 LOCK_WAIT = 1.0  # a job start tolerates another process's brief lock probe
 PROBE_WAIT = 0.2  # so does the submit-time probe
+USER, REFRESH = 0, 1  # queue priority: a user index_path never waits behind refresh jobs
+GC_INTERVAL = 86400.0  # embed-cache GC runs at most once a day
 
 
 class JobOwnedElsewhere(RuntimeError):
@@ -147,6 +155,7 @@ class Job:
     owner_pid: int = field(default_factory=os.getpid)
     owner_host: str = field(default_factory=socket.gethostname)
     last_error: str | None = None
+    refresh: bool = False
 
     def row(self) -> dict[str, Any]:
         return {c: getattr(self, c) for c in JOB_COLUMNS}
@@ -172,40 +181,70 @@ def _recover_stale(project_id: str) -> None:
 
 
 class JobRunner:
-    """One FIFO queue and one worker thread per server process."""
+    """One priority queue (user jobs, then refresh jobs; FIFO within each) and one worker thread."""
 
     def __init__(self, embedder: Embedder) -> None:
         self.embedder = embedder
         self._jobs: dict[str, Job] = {}  # latest job this server submitted, per project id
-        self._queue: queue.Queue[Job] = queue.Queue()
+        self._queue: queue.PriorityQueue[tuple[int, int, Job]] = queue.PriorityQueue()
+        self._seq = itertools.count()
         self._lock = threading.Lock()
         self._worker: threading.Thread | None = None
 
     # --- public ---------------------------------------------------------------------------
 
-    def submit(self, project: Project, path: str = ".", force: bool = False) -> dict[str, Any]:
+    def submit(
+        self, project: Project, path: str = ".", force: bool = False, *, refresh: bool = False
+    ) -> dict[str, Any] | None:
         """Queue an index job and return its status at once; reuse the project's active job.
 
         Raises JobOwnedElsewhere (and writes nothing) if another process holds the lock.
+        A `refresh` submit (timed refresh) never waits and returns None when the project already
+        has an active job. A user submit while only a queued refresh job exists replaces it, so
+        the user's job runs ahead of the other refresh jobs.
         """
         pid = project.project_id
         with self._lock:
             job = self._jobs.get(pid)
-            if job and job.status in ACTIVE:
-                return _view(job.row())
+            if job and job.status in ACTIVE and not (
+                job.refresh and job.status == "queued" and not refresh
+            ):
+                return None if refresh else _view(job.row())
             if config.index_file(pid).parent.is_dir():
                 with write_lock(pid, wait=PROBE_WAIT):  # probe; the worker holds it for the run
                     pass
             start, total, to_embed = tools.plan_index(project, path, force)
-            job = Job(project, start or ".", force, total, round(to_embed / self._rate(pid), 1))
+            job = Job(
+                project, start or ".", force, total, round(to_embed / self._rate(pid), 1),
+                refresh=refresh,
+            )
             self._jobs[pid] = job
-            self._queue.put(job)
+            self._queue.put((REFRESH if refresh else USER, next(self._seq), job))
             if self._worker is None:
                 self._worker = threading.Thread(
                     target=self._work, name="easy-context-jobs", daemon=True
                 )
                 self._worker.start()
             return _view(job.row())
+
+    def busy(self) -> bool:
+        with self._lock:
+            return any(j.status in ACTIVE for j in self._jobs.values())
+
+    def delete_orphan(self, project_id: str) -> bool:
+        """Delete a project's whole index folder (index, stats, lock) unless a job is active here
+        or another process holds its write lock. True if deleted."""
+        with self._lock:
+            job = self._jobs.get(project_id)
+            if job and job.status in ACTIVE:
+                return False
+            try:
+                with write_lock(project_id):
+                    shutil.rmtree(config.index_file(project_id).parent, ignore_errors=True)
+            except JobOwnedElsewhere:
+                return False
+            self._jobs.pop(project_id, None)
+            return True
 
     def status(self, project: Project) -> dict[str, Any] | None:
         return self._status(project.project_id)
@@ -293,9 +332,14 @@ class JobRunner:
     def _work(self) -> None:
         _lower_priority()
         while True:
-            job = self._queue.get()
+            _, _, job = self._queue.get()
             try:
-                self._run(job)
+                with self._lock:
+                    replaced = self._jobs.get(job.project.project_id) is not job
+                if replaced:  # a user job took this queued refresh job's place
+                    job.status = "done"
+                else:
+                    self._run(job)
             finally:
                 self._queue.task_done()
 
@@ -350,3 +394,78 @@ class JobRunner:
 
 def _error(exc: Exception) -> str:
     return f"{type(exc).__name__}: {exc}"
+
+
+def _is_orphan(root: str) -> bool:
+    """True only if the root's parent exists and the root does not, and (with a workspace) the
+    workspace is mounted: a missing or empty workspace root means an unmounted volume."""
+    workspace = config.workspace()
+    if workspace:
+        try:
+            if not os.path.isdir(workspace) or not any(os.scandir(workspace)):
+                return False
+        except OSError:
+            return False
+        if not (root == workspace or root.startswith(workspace.rstrip(os.sep) + os.sep)):
+            return False
+    return os.path.isdir(os.path.dirname(root)) and not os.path.lexists(root)
+
+
+class Refresher:
+    """Service-mode timer (FR-001c, FR-025): every `interval` seconds, for each index under the
+    home dir, delete it if its root vanished, else queue a refresh job through the JobRunner.
+    Daily, also garbage-collect the shared embed cache. A project without a `root` meta is
+    skipped; auto-discovery of repos is not done: only indexes that exist are refreshed."""
+
+    def __init__(self, runner: JobRunner, interval: float, gc_interval: float = GC_INTERVAL):
+        self.runner, self.interval, self.gc_interval = runner, interval, gc_interval
+        self._stop = threading.Event()
+        self._thread: threading.Thread | None = None
+
+    def start(self) -> None:
+        self._thread = threading.Thread(target=self._loop, name="easy-context-refresh", daemon=True)
+        self._thread.start()
+
+    def stop(self) -> None:
+        self._stop.set()
+
+    def _loop(self) -> None:
+        while not self._stop.wait(self.interval):
+            try:
+                self.cycle()
+            except Exception:
+                log.exception("refresh cycle failed")
+
+    def cycle(self) -> dict[str, list[str]]:
+        """One pass; returns project ids by outcome (`queued`, `deleted`) for tests and logs."""
+        out: dict[str, list[str]] = {"queued": [], "deleted": []}
+        base = config.home_dir() / "indexes"
+        dirs = sorted(d for d in base.iterdir() if d.is_dir()) if base.is_dir() else []
+        self._gc(dirs)  # before this cycle's refresh jobs: GC only runs while no job is active
+        for d in dirs:
+            root = read_root(d / "index.sqlite")
+            if not root:
+                continue
+            try:
+                if _is_orphan(root):
+                    if self.runner.delete_orphan(d.name):
+                        out["deleted"].append(d.name)
+                elif os.path.isdir(root) and self.runner.submit(
+                    Project(d.name, root), refresh=True
+                ):
+                    out["queued"].append(d.name)
+            except Exception:
+                log.warning("refresh skipped %s", d.name, exc_info=True)
+        return out
+
+    def _gc(self, dirs: list) -> None:
+        if self.runner.busy():
+            return
+        try:
+            referenced: set[str] = set()
+            for d in dirs:
+                if (d / "index.sqlite").is_file():
+                    referenced |= referenced_hashes(d / "index.sqlite")
+            gc_embed_cache(config.embed_cache_file(), referenced, min_interval=self.gc_interval)
+        except sqlite3.Error:  # an unreadable index: its hashes are unknown, so delete nothing
+            log.warning("embed-cache GC skipped", exc_info=True)

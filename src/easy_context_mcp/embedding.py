@@ -1,8 +1,11 @@
 """Embedders and the shared embed cache keyed by (chunk_hash, model_id) (FR-011, FR-023)."""
 
+import fcntl
 import hashlib
 import json
+import os
 import sqlite3
+import time
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -171,3 +174,41 @@ def embed_cached(
             found.update((h, v.tobytes()) for h, v in zip(part, vecs))
     vectors = np.stack([np.frombuffer(found[h], dtype=np.float32) for h in hashes])
     return vectors, hashes, len(missing)
+
+
+def gc_embed_cache(
+    cache_path: Path, referenced: set[str], *, min_interval: float, now: float | None = None
+) -> int | None:
+    """Delete cache rows whose chunk_hash is not in `referenced` (FR-025).
+
+    Runs at most once per `min_interval` seconds (last run kept in the cache file), under a
+    cache-level `flock` taken without waiting: a second runner skips. Searches never open the
+    cache, so they are not blocked. Returns rows deleted, or None if it did not run.
+    """
+    now = time.time() if now is None else now
+    if not cache_path.is_file():
+        return None
+    fd = os.open(cache_path.with_name(cache_path.name + ".lock"), os.O_RDWR | os.O_CREAT, 0o644)
+    try:
+        try:
+            fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError:
+            return None
+        with closing(sqlite3.connect(cache_path, timeout=30)) as con:
+            con.execute("PRAGMA journal_mode=WAL")
+            con.execute("CREATE TABLE IF NOT EXISTS gc_state (id INTEGER PRIMARY KEY, last_run REAL)")
+            row = con.execute("SELECT last_run FROM gc_state WHERE id = 1").fetchone()
+            if row and now - row[0] < min_interval:
+                return None
+            stale = [
+                (h,) for (h,) in con.execute("SELECT DISTINCT chunk_hash FROM embeddings")
+                if h not in referenced
+            ]
+            with con:
+                deleted = con.executemany(
+                    "DELETE FROM embeddings WHERE chunk_hash = ?", stale
+                ).rowcount
+                con.execute("INSERT OR REPLACE INTO gc_state (id, last_run) VALUES (1, ?)", (now,))
+            return deleted
+    finally:
+        os.close(fd)
