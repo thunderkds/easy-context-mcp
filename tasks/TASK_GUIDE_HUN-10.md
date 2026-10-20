@@ -130,6 +130,7 @@ N/A — pure backend / infrastructure task, no UI component. All three UI Eviden
 - [ ] Stale `running` row whose owner pid is dead (or other host) → marked failed only if flock is free
 - [ ] stdio session ends during job → job dies; next run resumes via hash skip
 - [ ] Estimate on first run with zero history
+- [ ] From HUN-7 review (P2): `search_semantic` k has no upper bound — clamp it (e.g. 100) or fetch slice text lazily, so a huge k cannot load every slice into memory. Also bound the per-process `_MATRICES` cache (LRU) for many projects.
 
 ---
 

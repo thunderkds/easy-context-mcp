@@ -125,6 +125,7 @@ Extend discovery with a filter chain returning (path, reason) so stats can count
 - [ ] File becomes unreadable (permissions) → skipped with reason, job continues
 - [ ] Case-insensitive filesystems: `.ENV` treated as secret
 - [ ] Root itself contains `.git` → indexed (only nested ones are skipped)
+- [ ] From HUN-7 review (P2): `discovery.iter_files` has cyclomatic complexity 19 (> 15); split the ignore-matching / pruning logic into helpers while extending it.
 
 ---
 
