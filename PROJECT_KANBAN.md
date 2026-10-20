@@ -11,6 +11,7 @@
 ### Todo
 - [ ] **HUN-14** — Timed refresh, orphan cleanup, worktree embed reuse | Backend-Implementer | C2 | Risk: Medium | P1 | @hungnh1110 | Guide: `tasks/TASK_GUIDE_HUN-14.md`
 - [ ] **HUN-15** — Docs + end-to-end: README install, limits, SECURITY.md, LICENSE, Easy Kit policy | QA-Automation-Agent | C1 | Risk: Low | P1 | @hungnh1110 | Guide: `tasks/TASK_GUIDE_HUN-15.md`
+- [ ] **HUN-18** — Refactor complex code-search functions (symbols.py, graph.py, chunking.py) below complexity limits, behaviour unchanged | Backend-Implementer | C2 | Risk: Medium | P2 | @hungnh1110 | Guide: `tasks/TASK_GUIDE_HUN-18.md`
 
 ### In Progress
 
