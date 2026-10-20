@@ -9,7 +9,6 @@
 ## Board
 
 ### Todo
-- [ ] **HUN-7** — First full path: index_path → search_semantic → get_slice with caps | Backend-Implementer | C3 | Risk: High | P0 | @hungnh1110 | Guide: `tasks/TASK_GUIDE_HUN-7.md`
 - [ ] **HUN-8** — File hygiene: binaries, secrets, size, nested .git, hash skip, deletions | Backend-Implementer | C2 | Risk: High | P0 | @hungnh1110 | Guide: `tasks/TASK_GUIDE_HUN-8.md`
 - [ ] **HUN-9** — Markdown heading chunks, stable slice ids, non-UTF-8 files | Backend-Implementer | C1 | Risk: Low | P1 | @hungnh1110 | Guide: `tasks/TASK_GUIDE_HUN-9.md`
 - [ ] **HUN-10** — Background jobs: non-blocking index_path, progress/ETA, single writer, low priority | Backend-Implementer | C3 | Risk: Medium | P0 | @hungnh1110 | Guide: `tasks/TASK_GUIDE_HUN-10.md`
@@ -20,6 +19,7 @@
 - [ ] **HUN-15** — Docs + end-to-end: README install, limits, SECURITY.md, LICENSE, Easy Kit policy | QA-Automation-Agent | C1 | Risk: Low | P1 | @hungnh1110 | Guide: `tasks/TASK_GUIDE_HUN-15.md`
 
 ### In Progress
+- [ ] **HUN-7** — First full path: index_path → search_semantic → get_slice with caps | Backend-Implementer | C3 | Risk: High | P0 | @hungnh1110 | Guide: `tasks/TASK_GUIDE_HUN-7.md`
 
 ### Ready for Review
 
