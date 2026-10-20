@@ -22,12 +22,18 @@ CREATE TABLE IF NOT EXISTS slices (
     end_line INTEGER NOT NULL,
     text TEXT NOT NULL,
     chunk_hash TEXT NOT NULL,
-    vector BLOB NOT NULL
+    vector BLOB NOT NULL,
+    heading_path TEXT,
+    heading_level INTEGER
 );
 CREATE INDEX IF NOT EXISTS slices_path ON slices(path);
 """
 
-SliceRow = tuple[str, int, int, str, str, bytes]  # id, start, end, text, chunk_hash, vector
+# Columns added after v1 shipped (HUN-9); open_write adds them to older v1 indexes.
+SLICE_COLUMNS_ADDED = (("heading_path", "TEXT"), ("heading_level", "INTEGER"))
+
+# id, start, end, text, chunk_hash, vector, heading_path, heading_level
+SliceRow = tuple[str, int, int, str, str, bytes, str | None, int | None]
 
 
 class ProjectStore:
@@ -48,6 +54,10 @@ class ProjectStore:
             con.close()
             raise ValueError(f"index {path} has schema v{version}; this server reads v1")
         con.executescript(SCHEMA)
+        have = {r[1] for r in con.execute("PRAGMA table_info(slices)")}
+        for name, kind in SLICE_COLUMNS_ADDED:
+            if name not in have:
+                con.execute(f"ALTER TABLE slices ADD COLUMN {name} {kind}")
         con.execute(f"PRAGMA user_version={SCHEMA_VERSION}")
         return cls(con, path)
 
@@ -82,8 +92,8 @@ class ProjectStore:
                 (path, sha256),
             )
             self.con.executemany(
-                "INSERT INTO slices (id, path, start_line, end_line, text, chunk_hash, vector) "
-                "VALUES (?, ?, ?, ?, ?, ?, ?)",
+                "INSERT INTO slices (id, path, start_line, end_line, text, chunk_hash, vector, "
+                "heading_path, heading_level) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
                 [(r[0], path, *r[1:]) for r in rows],
             )
             self.con.execute(
