@@ -7,12 +7,18 @@ slice; a class's lines left between and after its members (fields, closing brace
 outside symbols become gap slices (`symbol` None). Every non-blank line lands in exactly one slice.
 Slices longer than the slice cap are split into consecutive parts `n/N`.
 
+The first slice of a symbol also carries `refs` (JSON): its enclosing symbol (`parent`), the
+call sites in its own body (`calls`, `[name, receiver]`: receiver None, "self", the receiver's
+identifier, or "?" for any other expression) and
+its base types (`bases`). Names only; `graph.symbol_edges` resolves them (FR-028).
+
 `symbol_pieces` returns None (caller falls back to line windows) when the extension is not
 supported, the grammar wheel is missing, or the parse has an error outside any declaration.
 """
 
 import functools
 import importlib
+import json
 import logging
 import re
 from typing import NamedTuple
@@ -29,6 +35,7 @@ class Piece(NamedTuple):
     symbol: str | None  # qualified name, e.g. "Inventory.add"; None for gap slices
     kind: str | None  # function | class | method | interface | object
     part: str | None  # "n/N" when one slice was split by the cap
+    refs: str | None = None  # JSON {"parent", "calls", "bases"} on a symbol's first slice
 
 
 class _Lang(NamedTuple):
@@ -98,6 +105,7 @@ class _Sym(NamedTuple):
     name: str
     kind: str
     parent: int | None  # index into the symbol list
+    node: object = None  # the declaration node (valid while the parse tree is alive)
 
 
 def _text(src: bytes, node) -> str:
@@ -164,12 +172,129 @@ def _collect(parent_node, lang: _Lang, src: bytes, starts: list[int], prefix: st
         if child.end_point.column == 0 and last > first:
             last -= 1
         qualified = prefix + name
-        out.append(_Sym(first, last, qualified, kind, parent))
+        out.append(_Sym(first, last, qualified, kind, parent, node))
         if kind in _CONTAINERS:
             body = node.child_by_field_name("body") or next(
                 (c for c in node.named_children if c.type in lang.bodies), None)
             if body is not None:
                 _collect(body, lang, src, starts, qualified + ".", len(out) - 1, out)
+
+
+_NAMES = {"identifier", "type_identifier", "property_identifier"}
+_DOTTED = {"generic_type", "user_type", "scoped_type_identifier", "nested_type_identifier",
+           "member_expression", "attribute"}
+_HERITAGE = {"class_heritage", "extends_type_clause", "superclass", "super_interfaces",
+             "extends_interfaces", "delegation_specifiers"}
+_NOT_BASES = {"type_arguments", "arguments", "argument_list", "value_arguments",
+              "keyword_argument", "type_projection"}
+
+
+def _type_name(node, src: bytes) -> str | None:
+    """The last name of `a.b.C<T>` style nodes, e.g. `C`."""
+    if node.type in _NAMES:
+        return _text(src, node)
+    for child in reversed(node.named_children):
+        if child.type in _NAMES or child.type in _DOTTED:
+            return _type_name(child, src)
+    return None
+
+
+def _bases(node, src: bytes) -> list[str]:
+    roots = [c for c in node.children if c.type in _HERITAGE]
+    superclasses = node.child_by_field_name("superclasses")  # Python
+    if superclasses is not None:
+        roots.append(superclasses)
+    out: list[str] = []
+
+    def walk(parent) -> None:
+        for child in parent.named_children:
+            if child.type in _NOT_BASES:
+                continue
+            if child.type in _NAMES or child.type in _DOTTED:
+                name = _type_name(child, src)
+                if name:
+                    out.append(name)
+            else:
+                walk(child)
+
+    for root in roots:
+        walk(root)
+    return list(dict.fromkeys(out))
+
+
+def _receiver(node, src: bytes) -> str | None:
+    if node is None:
+        return None
+    if node.type in ("this", "this_expression"):
+        return "self"
+    if node.type == "identifier":
+        text = _text(src, node)
+        return "self" if text in ("self", "cls") else text
+    return "?"
+
+
+def _call(node, src: bytes) -> tuple[str, str | None] | None:
+    """(name, receiver) when `node` is a call or `new` expression, else None."""
+    kind = node.type
+    if kind == "method_invocation":  # Java
+        name = node.child_by_field_name("name")
+        return (_text(src, name), _receiver(node.child_by_field_name("object"), src)) if name else None
+    if kind == "object_creation_expression":
+        name = _type_name(node.child_by_field_name("type"), src) if node.child_by_field_name("type") else None
+        return (name, None) if name else None
+    if kind == "new_expression":  # JS / TS
+        ctor = node.child_by_field_name("constructor")
+        return (_text(src, ctor), None) if ctor is not None and ctor.type == "identifier" else None
+    if kind not in ("call", "call_expression"):
+        return None
+    fn = node.child_by_field_name("function") or (
+        node.named_children[0] if node.named_children else None)
+    if fn is None:
+        return None
+    if fn.type == "identifier":
+        return _text(src, fn), None
+    if fn.type == "attribute":  # Python
+        attr = fn.child_by_field_name("attribute")
+        return (_text(src, attr), _receiver(fn.child_by_field_name("object"), src)) if attr else None
+    if fn.type == "member_expression":  # JS / TS
+        prop = fn.child_by_field_name("property")
+        return (_text(src, prop), _receiver(fn.child_by_field_name("object"), src)) if prop else None
+    if fn.type == "navigation_expression":  # Kotlin
+        kids = fn.named_children
+        if len(kids) >= 2 and kids[-1].type == "identifier":
+            return _text(src, kids[-1]), _receiver(kids[0], src)
+    return None
+
+
+def _calls(node, skip: set, src: bytes) -> list[tuple[str, str | None]]:
+    """Distinct call sites in `node`'s body, not entering other symbols (`skip` keys)."""
+    out = []
+    stack = list(reversed(node.named_children))
+    while stack:
+        n = stack.pop()
+        if (n.start_byte, n.end_byte, n.type) in skip:
+            continue
+        found = _call(n, src)
+        if found:
+            out.append(found)
+        stack.extend(reversed(n.named_children))
+    return list(dict.fromkeys(out))
+
+
+def _refs(syms: list[_Sym], i: int, skip: set, src: bytes) -> str | None:
+    sym = syms[i]
+    refs: dict = {}
+    if sym.parent is not None:
+        refs["parent"] = syms[sym.parent].name
+    if sym.kind in ("function", "method"):
+        calls = _calls(sym.node, skip, src)
+        if calls:
+            refs["calls"] = calls
+    elif sym.kind in _CONTAINERS:
+        bases = _bases(sym.node, src)
+        if bases:
+            refs["bases"] = bases
+    return json.dumps(refs, separators=(",", ":")) if refs else None
 
 
 def _split(src: bytes, starts: list[int], ends: list[int], first: int, last: int,
@@ -228,6 +353,9 @@ def symbol_pieces(path: str, data: bytes, max_chars: int) -> list[Piece] | None:
     syms: list[_Sym] = []
     _collect(root, lang, src, [max(0, s - bom) for s in starts], "", None, syms)
 
+    skip = {(s.node.start_byte, s.node.end_byte, s.node.type) for s in syms}
+    refs = [_refs(syms, i, skip, src) for i in range(len(syms))]
+
     owner: list[int | None] = [None] * len(starts)
     for i, sym in enumerate(syms):
         parent_first = syms[sym.parent].first if sym.parent is not None else -1
@@ -260,6 +388,7 @@ def symbol_pieces(path: str, data: bytes, max_chars: int) -> list[Piece] | None:
                     a + 1, b + 1, sb, eb, data[sb:eb].decode("utf-8", errors="replace"),
                     sym.name if sym else None, sym.kind if sym else None,
                     f"{n}/{len(parts)}" if len(parts) > 1 else None,
+                    refs[who] if sym and n == 1 else None,
                 ))
         row = end + 1
     return out

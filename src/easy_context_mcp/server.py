@@ -90,8 +90,10 @@ def create_app(
 
         Edge types: `import` / `link` (between files, with `direction` out/in; the neighbour is
         the other file's first slice), `parent` / `child` (Markdown headings) and `same_file`
-        (neighbouring slices). Up to `limit` (default 10) neighbours with path + line range;
-        extra ones are counted in `dropped`.
+        (neighbouring slices). For a function or class slice: `calls`, `called_by`, `contains`
+        (a class's members) and `extends` (base types), matched by name (a name with several
+        candidates gets no edge) and ranked first. Up to `limit` (default 10) neighbours with
+        path + line range; extra ones are counted in `dropped`.
         """
         project = _bind(ctx, root, service_mode)
         return tools.get_related(project, slice_id, path, limit)

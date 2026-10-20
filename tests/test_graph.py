@@ -175,7 +175,7 @@ def test_get_related_by_slice_id_returns_slice_edges(repo, home):
     _, p = repo
     sid = first_id(home, p, "docs/guide.md", "AND heading_path = 'Guide > Install'")
     types = [r["edge_type"] for r in related(p, slice_id=sid)["related"]]
-    assert types[0] == "link"  # docs/index.md -> guide.md comes before slice edges
+    assert types[-1] == "link"  # HUN-17 AC8: file-level edges rank after slice edges
     assert types.count("parent") == 1 and types.count("child") == 2
 
 

@@ -10,10 +10,11 @@ import numpy as np
 
 log = logging.getLogger(__name__)
 
-# v2 (HUN-16): symbol columns + FTS5 symbol names. v3 (HUN-11): edges table. An older index is
-# dropped and rebuilt by the next index_path (it is a derived cache; the shared embed cache
-# keeps the vectors).
-SCHEMA_VERSION = 3
+# v2 (HUN-16): symbol columns + FTS5 symbol names. v3 (HUN-11): edges table. v4 (HUN-17):
+# `slices.refs` (call sites / bases of a symbol, resolved into edges at the end of index_path)
+# and an index on `edges.dst_slice`. An older index is dropped and rebuilt by the next
+# index_path (it is a derived cache; the shared embed cache keeps the vectors).
+SCHEMA_VERSION = 4
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS meta (
     key TEXT PRIMARY KEY,
@@ -39,7 +40,8 @@ CREATE TABLE IF NOT EXISTS slices (
     kind TEXT,
     start_byte INTEGER,
     end_byte INTEGER,
-    part TEXT
+    part TEXT,
+    refs TEXT
 );
 CREATE INDEX IF NOT EXISTS slices_path ON slices(path);
 CREATE TABLE IF NOT EXISTS edges (
@@ -52,9 +54,11 @@ CREATE TABLE IF NOT EXISTS edges (
 CREATE INDEX IF NOT EXISTS edges_src_path ON edges(src_path);
 CREATE INDEX IF NOT EXISTS edges_dst_path ON edges(dst_path);
 CREATE INDEX IF NOT EXISTS edges_src_slice ON edges(src_slice);
+CREATE INDEX IF NOT EXISTS edges_dst_slice ON edges(dst_slice);
 """
 # `edges`: file-level rows (import, link) have NULL src_slice/dst_slice and name the files;
-# slice-level rows (parent, child, same_file) carry both slice ids. `dst_path` has no foreign
+# slice-level rows (parent, child, same_file, and the symbol edges calls, contains, extends)
+# carry both slice ids; the symbol edges also name the callee's file in `dst_path`. `dst_path` has no foreign
 # key because a target may be indexed after its importer; `remove_files` deletes it by hand.
 # Symbol names for the name match (FR-027); kept in step with `slices` by triggers, so cascade
 # deletes from `files` clean it too. `_` and `$` are word characters: `add_item` is one token.
@@ -73,14 +77,15 @@ END;
 """
 
 # id, start, end, text, chunk_hash, vector, heading_path, heading_level,
-# symbol, kind, start_byte, end_byte, part
+# symbol, kind, start_byte, end_byte, part, refs
 SliceRow = tuple[
     str, int, int, str, str, bytes, str | None, int | None,
-    str | None, str | None, int | None, int | None, str | None,
+    str | None, str | None, int | None, int | None, str | None, str | None,
 ]
 # id, path, start_line, end_line, text, symbol, kind, part
 StoredSlice = tuple[str, str, int, int, str, str | None, str | None, str | None]
 _SLICE_COLUMNS = "id, path, start_line, end_line, text, symbol, kind, part"
+SYMBOL_EDGE_TYPES = ("calls", "contains", "extends")  # stored rows; `called_by` is their reverse
 _BUMP_GENERATION = (
     "INSERT INTO meta (key, value) VALUES ('generation', '1') "
     "ON CONFLICT(key) DO UPDATE SET value = CAST(value AS INTEGER) + 1"
@@ -191,8 +196,8 @@ class ProjectStore:
             )
             self.con.executemany(
                 "INSERT INTO slices (id, path, start_line, end_line, text, chunk_hash, vector, "
-                "heading_path, heading_level, symbol, kind, start_byte, end_byte, part) "
-                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                "heading_path, heading_level, symbol, kind, start_byte, end_byte, part, refs) "
+                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                 [(r[0], path, *r[1:]) for r in rows],
             )
             self.con.executemany(
@@ -279,7 +284,48 @@ class ProjectStore:
                 "WHERE e.src_slice = ? ORDER BY s.start_line", (slice_id,)
             )
             out += [(r[0], None, r[1:]) for r in rows]
+            rows = self.con.execute(
+                f"SELECT {cols} FROM edges e JOIN slices s ON s.id = e.src_slice "
+                "WHERE e.dst_slice = ? AND e.edge_type = 'calls' ORDER BY s.path, s.start_line",
+                (slice_id,),
+            )
+            out += [("called_by", None, r) for r in rows]  # reverse of the stored `calls` rows
         return out
+
+    def symbol_rows(self) -> list[tuple[str, str, str, str, str | None]]:
+        """(id, path, symbol, kind, refs) of every symbol's first slice, for edge resolution."""
+        return self.con.execute(
+            "SELECT id, path, symbol, kind, refs FROM slices WHERE symbol IS NOT NULL "
+            "AND (part IS NULL OR part LIKE '1/%') ORDER BY path, start_line"
+        ).fetchall()
+
+    def import_map(self) -> dict[str, set[str]]:
+        """path -> files it imports (file-level `import` edges)."""
+        out: dict[str, set[str]] = {}
+        for src, dst in self.con.execute(
+            "SELECT src_path, dst_path FROM edges WHERE edge_type = 'import' AND src_slice IS NULL"
+        ):
+            out.setdefault(src, set()).add(dst)
+        return out
+
+    def replace_symbol_edges(self, edges: set[tuple[str, str, str, str, str]]) -> bool:
+        """Make the stored `calls` / `contains` / `extends` rows equal `edges`, which are
+        (src_path, dst_path, edge_type, src_slice, dst_slice). Writes nothing (and returns False)
+        when they already are. Other edge rows and the generation are never touched."""
+        marks = ",".join("?" * len(SYMBOL_EDGE_TYPES))
+        stored = set(self.con.execute(
+            "SELECT src_path, dst_path, edge_type, src_slice, dst_slice FROM edges "
+            f"WHERE edge_type IN ({marks})", SYMBOL_EDGE_TYPES
+        ))
+        if stored == edges:
+            return False
+        with self.con:
+            self.con.execute(f"DELETE FROM edges WHERE edge_type IN ({marks})", SYMBOL_EDGE_TYPES)
+            self.con.executemany(
+                "INSERT INTO edges (src_path, dst_path, edge_type, src_slice, dst_slice) "
+                "VALUES (?, ?, ?, ?, ?)", sorted(edges)
+            )
+        return True
 
     def name_matches(self, query: str, limit: int = 1000) -> dict[str, float]:
         """slice_id -> name bonus: 2.0 when the query names the symbol (equals its qualified
