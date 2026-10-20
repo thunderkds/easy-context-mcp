@@ -24,7 +24,19 @@ def canonical_root(path: str) -> str:
     root = os.path.realpath(path)
     if not os.path.isdir(root):
         raise BindingError(f"root does not exist or is not a directory: {path!r}")
-    return root
+    return _git_root(root)
+
+
+def _git_root(directory: str) -> str:
+    """Nearest ancestor (inclusive) holding a `.git` file or directory, else `directory`."""
+    current = directory
+    while True:
+        if os.path.lexists(os.path.join(current, ".git")):
+            return current
+        parent = os.path.dirname(current)
+        if parent == current:
+            return directory
+        current = parent
 
 
 def project_id_for(root: str) -> str:

@@ -95,3 +95,52 @@ def test_bad_roots_error_and_create_nothing(tmp_path, monkeypatch):
         with pytest.raises(BindingError):
             svc(header=bad)
     assert not home.exists()
+
+
+def _repo(tmp_path, git_is_file=False):
+    repo = tmp_path / "repo"
+    sub = repo / "pkg" / "inner"
+    sub.mkdir(parents=True)
+    if git_is_file:
+        (repo / ".git").write_text("gitdir: /elsewhere/.git/worktrees/repo\n")
+    else:
+        (repo / ".git").mkdir()
+    return repo, sub
+
+
+def test_subdir_of_git_repo_binds_repo_root(tmp_path):
+    repo, sub = _repo(tmp_path)
+    assert svc(header=str(sub)).root == os.path.realpath(repo)
+
+
+def test_subdir_of_worktree_binds_worktree_root_not_main(tmp_path):
+    main, _ = _repo(tmp_path / "main_checkout")
+    wt, sub = _repo(tmp_path / "wt", git_is_file=True)
+    assert svc(header=str(sub)).root == os.path.realpath(wt)
+    assert svc(header=str(sub)).root != os.path.realpath(main)
+
+
+def test_header_subdir_and_arg_repo_root_no_conflict(tmp_path):
+    repo, sub = _repo(tmp_path)
+    assert svc(header=str(sub), arg=str(repo)).root == os.path.realpath(repo)
+
+
+def test_non_git_dir_unchanged(tmp_path):
+    d = tmp_path / "plain" / "deep"
+    d.mkdir(parents=True)
+    assert svc(header=str(d)).root == os.path.realpath(d)
+
+
+def test_subdir_project_id_equals_repo_root_id(tmp_path):
+    repo, sub = _repo(tmp_path)
+    assert svc(header=str(sub)).project_id == svc(header=str(repo)).project_id
+
+
+def test_stdio_cwd_and_env_walk_up(tmp_path, monkeypatch):
+    repo, sub = _repo(tmp_path)
+    monkeypatch.delenv("EASY_CONTEXT_ROOT", raising=False)
+    monkeypatch.chdir(sub)
+    stdio = resolve_project(header_root=None, arg_root=None, service_mode=False)
+    assert stdio.root == os.path.realpath(repo)
+    monkeypatch.setenv("EASY_CONTEXT_ROOT", str(sub))
+    assert resolve_project(header_root=None, arg_root=None, service_mode=False).root == stdio.root

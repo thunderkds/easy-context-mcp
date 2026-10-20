@@ -1,3 +1,4 @@
+import http.client
 import os
 import socket
 import subprocess
@@ -160,3 +161,19 @@ def test_port_in_use_exits_nonzero(tmp_path):
         )
     assert proc.returncode != 0
     assert b"already in use" in proc.stderr
+
+
+def test_http_rejects_forged_host_header(http_server):
+    conn = http.client.HTTPConnection("127.0.0.1", http_server, timeout=10)
+    conn.request(
+        "POST",
+        "/mcp",
+        body="{}",
+        headers={
+            "Host": "evil.example.com",
+            "Content-Type": "application/json",
+            "Accept": "application/json, text/event-stream",
+        },
+    )
+    assert conn.getresponse().status == 421
+    conn.close()
