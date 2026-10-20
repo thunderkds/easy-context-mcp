@@ -9,12 +9,12 @@
 ## Board
 
 ### Todo
-- [ ] **HUN-11** — Graph edges + get_related (1-hop) | Backend-Implementer | C2 | Risk: Medium | P1 | @hungnh1110 | Guide: `tasks/TASK_GUIDE_HUN-11.md`
 - [ ] **HUN-14** — Timed refresh, orphan cleanup, worktree embed reuse | Backend-Implementer | C2 | Risk: Medium | P1 | @hungnh1110 | Guide: `tasks/TASK_GUIDE_HUN-14.md`
 - [ ] **HUN-15** — Docs + end-to-end: README install, limits, SECURITY.md, LICENSE, Easy Kit policy | QA-Automation-Agent | C1 | Risk: Low | P1 | @hungnh1110 | Guide: `tasks/TASK_GUIDE_HUN-15.md`
 - [ ] **HUN-17** — Symbol graph edges (calls, called_by, contains, extends) in get_related | Backend-Implementer | C2 | Risk: Medium | P1 | @hungnh1110 | Guide: `tasks/TASK_GUIDE_HUN-17.md`
 
 ### In Progress
+- [ ] **HUN-11** — Graph edges + get_related (1-hop) | Backend-Implementer | C2 | Risk: Medium | P1 | @hungnh1110 | Guide: `tasks/TASK_GUIDE_HUN-11.md`
 - [ ] **HUN-12** — Stats: get_stats served counters, final list_indexes fields | Backend-Implementer | C1 | Risk: Low | P1 | @hungnh1110 | Guide: `tasks/TASK_GUIDE_HUN-12.md`
 - [ ] **HUN-13** — Docker service: image with baked model, compose stdio + shared service, hardening | Common-Infrastructure-Agent | C2 | Risk: Medium | P0 | @hungnh1110 | Guide: `tasks/TASK_GUIDE_HUN-13.md`
 
