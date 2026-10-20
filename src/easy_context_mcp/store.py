@@ -486,6 +486,32 @@ def read_served(path: Path) -> tuple[int, int]:
     return (row[0], row[1]) if row else (0, 0)
 
 
+def read_root(path: Path) -> str | None:
+    """The `root` meta of an index file of ANY schema version; None if absent or unreadable."""
+    return _read_one(path, "SELECT value FROM meta WHERE key = 'root'")
+
+
+def _read_one(path: Path, sql: str) -> str | None:
+    try:
+        con = sqlite3.connect(f"file:{path}?mode=ro", uri=True, timeout=1)
+        try:
+            row = con.execute(sql).fetchone()
+        finally:
+            con.close()
+    except sqlite3.Error:
+        return None
+    return row[0] if row else None
+
+
+def referenced_hashes(path: Path) -> set[str]:
+    """Every `chunk_hash` an index file references. sqlite3.Error propagates (caller aborts)."""
+    con = sqlite3.connect(f"file:{path}?mode=ro", uri=True, timeout=5)
+    try:
+        return {r[0] for r in con.execute("SELECT DISTINCT chunk_hash FROM slices")}
+    finally:
+        con.close()
+
+
 # Per-process matrix cache, least recently used first; bounded so many projects cannot pile up.
 MAX_CACHED_MATRICES = 4
 _MATRICES: "OrderedDict[str, tuple[str, list[str], list[str], np.ndarray]]" = OrderedDict()

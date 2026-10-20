@@ -47,7 +47,15 @@
 
 The edited file is not re-indexed: search still returns the OLD text (zebra) and the NEW text (quokka) is not found. The worktree line shows the embed cache already reuses the unchanged chunk (1 embedded, 1 cached).
 
-**AFTER**: [same command, post-change] OR [verbatim excerpt of the new content]
+**AFTER** (`uv run python /tmp/hun14/after.py`, same repo setup; `Refresher(runner, 2)` started as `create_app(service_mode=True)` does):
+
+```
+2026-10-20T11:00:20Z indexed
+2026-10-20T11:00:20Z edited a.py; waiting 5s (refresh interval 2s), no index_path call
+2026-10-20T11:00:25Z search 'zebra': def beta():|    return 'stable'
+2026-10-20T11:00:25Z search 'quokka': def alpha():|    return 'NEW text quokka'
+2026-10-20T11:00:25Z worktree index: chunks_embedded=1 chunks_cached=1
+```
 
 **DELTA**: [one sentence — what a user can now do that they could not before]
 
