@@ -12,6 +12,7 @@ are written only by the lock holder; a `queued` job lives only in this server's 
 """
 
 import fcntl
+import json
 import os
 import queue
 import socket
@@ -68,14 +69,19 @@ def write_lock(project_id: str, wait: float = 0.0) -> Iterator[None]:
         os.close(fd)  # closing the descriptor releases the lock
 
 
+def _read_strict(project_id: str, fn):
+    """fn(store) on a read-only connection; None if there is no index; sqlite3.Error propagates."""
+    store = ProjectStore.open_read(config.index_file(project_id))
+    if store is None:
+        return None
+    with closing(store):
+        return fn(store)
+
+
 def _read(project_id: str, fn):
-    """fn(store) on a read-only connection; None if there is no readable index."""
+    """Like _read_strict, but an unreadable index gives None."""
     try:
-        store = ProjectStore.open_read(config.index_file(project_id))
-        if store is None:
-            return None
-        with closing(store):
-            return fn(store)
+        return _read_strict(project_id, fn)
     except sqlite3.Error:
         return None
 
@@ -237,13 +243,36 @@ class JobRunner:
             return _view(job.row())  # ours is newest (or failed before it could write a row)
         return _view(row) if row else None
 
+    def stats(self, project: Project, project_id: str | None = None) -> dict[str, Any]:
+        """get_stats: one project's counts, skipped-by-reason and served counters, never slice text.
+
+        Another project's stats come from the same set `list_indexes` shows; unknown id raises.
+        """
+        pid = project_id or project.project_id
+        if pid == project.project_id:
+            entry = self._entry(pid, project.root)
+        else:
+            entry = next((e for e in self.list_indexes(project) if e["project_id"] == pid), None)
+            if entry is None:
+                raise ValueError(f"unknown project_id {pid!r}; list_indexes shows the known ones")
+        raw = _read(pid, lambda s: s.meta("last_tally"))
+        return {**entry, "skipped": json.loads(raw) if raw else None, **tools.served_totals(pid)}
+
     def _entry(self, pid: str, root: str | None) -> dict[str, Any]:
-        info = _read(pid, lambda s: (s.meta("root"), *s.counts(), s.last_done_at()))
+        error = None
+        try:  # not _read: a corrupt index must show as an error, not as an empty one
+            info = _read_strict(
+                pid, lambda s: (s.meta("root"), *s.counts(), s.last_done_at())
+            )
+        except sqlite3.Error as exc:
+            info, error = None, _error(exc)
         stored_root, files, slices, last_done = info or (None, 0, 0, None)
+        root = root or stored_root
         st = self._status(pid) or {}
-        return {
+        entry = {
             "project_id": pid,
-            "root": root or stored_root,
+            "root": root,
+            "root_exists": bool(root) and os.path.isdir(root),
             "files": files,
             "slices": slices,
             "last_index_at": _iso(last_done),
@@ -255,6 +284,7 @@ class JobRunner:
             "eta_seconds": st.get("eta_seconds"),
             "last_error": st.get("last_error"),
         }
+        return {**entry, "error": error} if error else entry
 
     def _work(self) -> None:
         _lower_priority()
@@ -305,6 +335,7 @@ class JobRunner:
             if result["files_embedded"]:
                 rate = result["files_embedded"] / max(time.time() - start, 1e-3)
                 store.set_meta("files_per_second", f"{rate:.3f}")
+            store.set_meta("last_tally", json.dumps(result["skipped"]))
         except Exception as exc:  # noqa: BLE001 - committed files stay served; job says why
             status, error = "failed", _error(exc)
         job.finished_at = time.time()

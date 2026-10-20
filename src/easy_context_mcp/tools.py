@@ -2,6 +2,7 @@
 
 import hashlib
 import json
+import threading
 from collections.abc import Callable
 from contextlib import closing
 from typing import Any
@@ -18,7 +19,7 @@ from .discovery import (
     resolve_index_dir,
 )
 from .embedding import Embedder, embed_cached, normalize
-from .store import ProjectStore, search_vectors
+from .store import ProjectStore, add_served, read_served, search_vectors
 
 PREVIEW_CHARS = 120
 MAX_K = 100  # search_semantic clamps k to this, so a huge k cannot load every slice
@@ -159,6 +160,48 @@ def index_path(
     }
 
 
+# Served-context counters (HUN-12). `_SINCE` is this process only. `_PENDING` is what is not yet in
+# the project's stats.sqlite because the file was busy; the next call retries. Both live in memory
+# under one lock, and a busy file is skipped, never waited on, so a read tool never blocks.
+_SERVED_LOCK = threading.Lock()
+_SINCE: dict[str, list[int]] = {}
+_PENDING: dict[str, list[int]] = {}
+
+
+def _stats_file(project_id: str):
+    return config.index_file(project_id).parent / "stats.sqlite"
+
+
+def record_served(project: Project, chars: int, slices: int) -> None:
+    """Count what one response returned (slice text chars after caps, slice count)."""
+    if not chars and not slices:
+        return
+    pid = project.project_id
+    with _SERVED_LOCK:
+        since = _SINCE.setdefault(pid, [0, 0])
+        pending = _PENDING.setdefault(pid, [0, 0])
+        since[0] += chars
+        since[1] += slices
+        pending[0] += chars
+        pending[1] += slices
+        if add_served(_stats_file(pid), *pending):
+            pending[:] = [0, 0]
+
+
+def served_totals(project_id: str) -> dict[str, int]:
+    """Cumulative (persisted + pending) and since-start served counters of one project."""
+    with _SERVED_LOCK:
+        chars, slices = read_served(_stats_file(project_id))
+        p_chars, p_slices = _PENDING.get(project_id, (0, 0))
+        s_chars, s_slices = _SINCE.get(project_id, (0, 0))
+    return {
+        "chars_served": chars + p_chars,
+        "slices_served": slices + p_slices,
+        "chars_served_since_start": s_chars,
+        "slices_served_since_start": s_slices,
+    }
+
+
 def _capped(text: str, limit: int) -> tuple[str, bool]:
     return (text[:limit], True) if len(text) > limit else (text, False)
 
@@ -215,7 +258,9 @@ def search_semantic(
             "truncated": truncated,
         })
     head = {**_envelope(project), "indexed": True, "indexing": indexing}
-    return _fit_response(head, hits, response_cap)
+    response = _fit_response(head, hits, response_cap)
+    record_served(project, sum(len(h["text"]) for h in response["hits"]), len(response["hits"]))
+    return response
 
 
 def _fit_response(head: dict[str, Any], hits: list[dict], cap: int) -> dict[str, Any]:
@@ -251,6 +296,7 @@ def get_slice(project: Project, slice_id: str, *, indexing: bool = False) -> dic
         )
     sid, path, start, end, text = row
     capped, truncated = _capped(text, config.max_slice_chars())
+    record_served(project, len(capped), 1)
     return {
         **_envelope(project),
         "indexing": indexing,

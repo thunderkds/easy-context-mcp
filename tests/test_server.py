@@ -135,7 +135,7 @@ def test_http_neither_errors_naming_both_options(http_server):
 def test_http_arg_fallback_and_stub_tool(http_server, tmp_path):
     res = anyio.run(call_http, http_server, "list_indexes", {"root": str(tmp_path)})
     assert res.structuredContent["root"] == os.path.realpath(tmp_path)
-    res = anyio.run(call_http, http_server, "get_stats", {"root": str(tmp_path)})
+    res = anyio.run(call_http, http_server, "get_related", {"slice_id": "x", "root": str(tmp_path)})
     assert res.isError and "not_implemented" in text(res)
 
 

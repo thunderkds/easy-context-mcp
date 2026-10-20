@@ -41,9 +41,17 @@
 ToolError Error executing tool get_stats: not_implemented: get_stats is not implemented yet
 ```
 
-**AFTER**: [same command, post-change] OR [verbatim excerpt of the new content]
+**AFTER**: 2026-10-20T10:11:46Z, same FastMCP layer, after indexing a fixture repo (one binary file) and one `search_semantic`:
 
-**DELTA**: [one sentence — what a user can now do that they could not before]
+```
+2026-10-20T10:11:46.013518+00:00 call get_stats
+{"project_id": "repo-0bbd5ba9022e", "root": ".../repo", "root_exists": true, "files": 6, "slices": 10,
+ "last_index_at": "2026-10-20T10:11:45.963+00:00", "status": "done", "eta_seconds": 0, ...,
+ "skipped": {"binary": 1, "secret": 0, "too_large": 0, "nested_repo": 0, "unreadable": 0},
+ "chars_served": 3192, "slices_served": 5, "chars_served_since_start": 3192, "slices_served_since_start": 5}
+```
+
+**DELTA**: A user can now call `get_stats` to see index counts, skipped files by reason and how much context was served, and `list_indexes` shows whether each root still exists.
 
 **WITNESS**: [who ran it and when — derived from `memory/event-trace/Txxx.jsonl`, never the
 implementing agent alone]
