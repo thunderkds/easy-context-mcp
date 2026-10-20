@@ -73,6 +73,9 @@ With the family default (`create_host_path: true`), an unset `EASY_CONTEXT_WORKS
 **Files**: compose.yaml
 
 ### 2026-10-20 — easy-verifier change_risk 0 is often a naming artefact
-The `feature` rule `new_code_without_test_share` pairs `foo.py` with `test_foo.py` only; this repo names tests by feature (test_hygiene.py, test_jobs.py), so change_risk reads 0 even with full coverage. Report it as an artefact, not missing tests.
+The `feature` rule `new_code_without_test_share` pairs `foo.py` with `test_foo.py` only; this repo names tests by feature (test_hygiene.py, test_jobs.py), so change_risk reads 0 even with full coverage. Report it as an artefact, not missing tests. It also counts new `tests/fixtures/**/*.py` as new code. `agent_input.change_kind` must be an object `{"value": "feature", "reason": "..."}` — a bare string is rejected silently (falls back to `detected`).
 **Files**: tests/test_hygiene.py, tests/test_jobs.py
 
+### 2026-10-20 — Never `ruff --fix` test fixtures
+`ruff check --fix tests` strips "unused" imports from fixture repos (tests/fixtures/graph_repo/app.py, pkg/sub.py), breaking the import-edge tests. Fixture .py files start with `# ruff: noqa`; run `--fix` only on src/ and tests/*.py.
+**Files**: tests/fixtures/graph_repo/

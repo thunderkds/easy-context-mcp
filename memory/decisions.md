@@ -36,6 +36,11 @@
 **Why**: User (2026-10-20): AST symbol + graph retrieval beats vector search over line windows for code; option 1 (inside the six tools).
 **Files**: src/easy_context_mcp/symbols.py, src/easy_context_mcp/chunking.py, src/easy_context_mcp/store.py, src/easy_context_mcp/tools.py, pyproject.toml
 
+### 2026-10-20 — Graph edges + get_related (HUN-11)
+**Decision**: Index schema v3 adds `edges(src_path FK files ON DELETE CASCADE, dst_path, edge_type, src_slice, dst_slice)`. File-level rows (`import` py/js/ts by regex, `link` Markdown) have NULL slice ids; the neighbour is the target file's first slice, looked up at query time; `dst_path` has no FK (target may be indexed later), `remove_files` deletes by dst_path. Slice-level rows (`parent`/`child` from heading levels, `same_file` neighbours by start_line, degree ≤ 2) carry both slice ids — HUN-17 adds calls/called_by/contains/extends the same way. get_related(slice_id XOR path, limit=10): path → the file's import/link edges both directions (`direction` out/in); slice_id → those plus its slice edges; ranked import, link, parent, child, same_file; response cap via `_fit_response(key="related")`. Edges are computed only when a file is (re)processed (stale until importer changes or force).
+**Why**: FR-006 / README §7; DDR-0002 needs a slice-to-slice table for the symbol graph.
+**Files**: src/easy_context_mcp/graph.py, src/easy_context_mcp/store.py, src/easy_context_mcp/tools.py, src/easy_context_mcp/server.py
+
 ### 2026-10-20 — Background jobs + served counters (HUN-10, HUN-12)
 **Decision**: One worker thread per server, FIFO, nice ≥10 on that thread only (Linux nice is per thread; the job embedder is created inside it so ONNX threads inherit nice). Per-project `write.lock` flock held for the whole job; `jobs` table (additive) + in-memory `queued`; stale `running` rows failed when their lock is free. k clamped to 100; matrix cache LRU 4. Remote embedder only https or loopback http, key never in errors. Served counters in a separate per-project `stats.sqlite` (timeout=0, pending delta kept in memory); last job's skip counts in meta `last_tally`.
 **Why**: FR-001a/b, FR-007, FR-008, FR-012, NFR-001a, NFR-006; FastMCP runs sync tools on the event loop, so long work must leave the tool call.
