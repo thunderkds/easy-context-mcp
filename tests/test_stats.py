@@ -7,14 +7,13 @@ import threading
 import time
 
 import anyio
-import numpy as np
 import pytest
 
-from easy_context_mcp import config, jobs, tools
+from easy_context_mcp import config, jobs, store, tools
 from easy_context_mcp.server import create_app
 from easy_context_mcp.store import read_served
 from test_index_search import FakeEmbedder, make_repo, project
-from test_jobs import MAIN_SCHEMA, SlowEmbedder, done, home, make_files, runners  # noqa: F401
+from test_jobs import V1_SCHEMA, SlowEmbedder, done, home, make_files, runners  # noqa: F401
 
 
 def indexed(tmp_path, runners, name="repo"):  # noqa: F811
@@ -194,29 +193,59 @@ def test_healthy_entries_have_no_error(tmp_path, runners):  # noqa: F811
 # --- schema: additive only -----------------------------------------------------------------------------
 
 
-def test_pre_hun10_index_stats_work_and_schema_unchanged(tmp_path, runners, home):  # noqa: F811
+def test_current_index_stats_work_and_index_schema_unchanged(tmp_path, runners, home):  # noqa: F811
     p = project(make_files(tmp_path / "repo", 2))
+    tools.index_path(p, ".", embedder=FakeEmbedder())  # a current-main (v4) index, no job rows
+    r = runners(FakeEmbedder())
+    st = r.stats(p)
+    assert (st["files"], st["slices"], st["skipped"], st["chars_served"]) == (2, 2, None, 0)
+    tools.search_semantic(p, "alpha", embedder=FakeEmbedder())
+    assert r.stats(p)["slices_served"] > 0
+    con = sqlite3.connect(config.index_file(p.project_id))
+    tables = {x[0] for x in con.execute("SELECT name FROM sqlite_master WHERE type='table'")}
+    assert "served" not in tables  # counters live in stats.sqlite, index.sqlite is untouched
+    assert con.execute("PRAGMA user_version").fetchone() == (store.SCHEMA_VERSION,)
+    con.close()
+
+
+def test_v1_index_stats_work_then_rebuild_keeps_counters(tmp_path, runners, home):  # noqa: F811
+    p = project(make_files(tmp_path / "repo", 3))
     path = config.index_file(p.project_id)
     path.parent.mkdir(parents=True)
     con = sqlite3.connect(path)
-    con.executescript(MAIN_SCHEMA)
+    con.executescript(V1_SCHEMA)
     con.execute("INSERT INTO meta VALUES ('model_id', ?), ('generation', '1')",
                 (FakeEmbedder.model_id,))
     con.execute("INSERT INTO files VALUES ('old.py', 'x', 1, 1)")
-    con.execute("INSERT INTO slices VALUES ('s1', 'old.py', 1, 1, 'old', 'h', ?, NULL, NULL)",
-                (np.ones(256, np.float32).tobytes(),))
     con.commit()
     con.close()
-    r = runners(FakeEmbedder())
+    r = runners(SlowEmbedder(delay=0))
+    tools.record_served(p, 10, 1)
+    st = r.stats(p)  # old version: listed as empty, not an error
+    assert "error" not in st and st["files"] == 0 and st["skipped"] is None
+    r.submit(p, ".")
+    done(r, p)
     st = r.stats(p)
-    assert (st["files"], st["slices"], st["skipped"], st["chars_served"]) == (1, 1, None, 0)
-    tools.search_semantic(p, "old", embedder=FakeEmbedder())
-    assert r.stats(p)["slices_served"] == 1
-    con = sqlite3.connect(path)
-    tables = {x[0] for x in con.execute("SELECT name FROM sqlite_master WHERE type='table'")}
-    assert "served" not in tables  # counters live in stats.sqlite, index.sqlite is untouched
-    assert con.execute("PRAGMA user_version").fetchone() == (1,)
-    con.close()
+    assert st["files"] == 3 and st["skipped"]["binary"] == 0 and st["chars_served"] == 10
+    assert "error" not in st
+
+
+def test_get_related_counts_served_preview_chars(tmp_path, runners):  # noqa: F811
+    root = tmp_path / "repo"
+    root.mkdir()
+    (root / "doc.md").write_text("# Top\nintro words\n\n## One\nfirst body\n\n## Two\nsecond\n")
+    p = project(root)
+    r = runners(SlowEmbedder(delay=0))
+    r.submit(p, ".")
+    done(r, p)
+    hits = tools.search_semantic(p, "first body", embedder=FakeEmbedder())["hits"]
+    before = r.stats(p)
+    out = tools.get_related(p, hits[0]["id"])
+    assert out["related"]
+    after = r.stats(p)
+    assert after["slices_served"] - before["slices_served"] == len(out["related"])
+    assert after["chars_served"] - before["chars_served"] == sum(
+        len(x["preview"]) for x in out["related"])
 
 
 def test_concurrent_record_served_adds_up(tmp_path, runners):  # noqa: F811

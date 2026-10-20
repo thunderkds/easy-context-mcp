@@ -1,0 +1,71 @@
+# Easy Context MCP, Docker packaging (FR-017-FR-019, NFR-001a, NFR-005).
+#
+# Shared service for every repo on the machine (Linux):
+#   EASY_CONTEXT_WORKSPACE=/abs/parent/of/repos UID=$(id -u) GID=$(id -g) \
+#     docker compose up -d service
+#   claude mcp add --transport http easy-context http://127.0.0.1:8767/mcp \
+#     --header "X-Easy-Context-Root: ${PWD}"
+# One-shot stdio server (no network):
+#   EASY_CONTEXT_WORKSPACE=/abs/parent/of/repos UID=$(id -u) GID=$(id -g) \
+#     docker compose run --rm -w "$PWD" stdio
+#
+# The workspace is mounted read-only at the identical host path, so every path in a
+# request or a response is a host path. The index dir (default ~/.easy-context) is a
+# writable bind mount at the identical path; the container runs as the host user so
+# files on the host stay yours. Create the index dir first (mkdir -p ~/.easy-context):
+# Docker is told not to create missing host paths, which it would create as root.
+# network_mode: host makes the server's 127.0.0.1 the host's loopback; the server binds
+# nothing else. No auth: any local process can search the indexed repos while it runs.
+# Docker Desktop (macOS/Windows) has no host networking on the host's loopback and is
+# not supported here; map "127.0.0.1:8767:8767" under `ports` and run the server on
+# 0.0.0.0 inside only if you accept that the cross-mode flock/WAL note in DDR-0001 applies.
+
+x-common: &common
+  build:
+    context: .
+    dockerfile: Dockerfile
+  image: temvar/easy-context-mcp:0.1.0
+  init: true
+  read_only: true
+  user: "${UID:-1000}:${GID:-1000}"
+  cap_drop:
+    - ALL
+  security_opt:
+    - no-new-privileges:true
+  tmpfs:
+    - /tmp:rw,noexec,nosuid,nodev,size=64m
+  environment: &common-env
+    PYTHONUNBUFFERED: "1"
+    EASY_CONTEXT_WORKSPACE: ${EASY_CONTEXT_WORKSPACE:-/EASY_CONTEXT_WORKSPACE-must-be-set}
+    EASY_CONTEXT_HOME: ${EASY_CONTEXT_HOME:-${HOME}/.easy-context}
+    EASY_CONTEXT_THREADS: ${EASY_CONTEXT_THREADS:-2}
+  volumes: &common-volumes
+    # Unset EASY_CONTEXT_WORKSPACE fails `up`/`run` with a mount error naming it.
+    - type: bind
+      source: ${EASY_CONTEXT_WORKSPACE:-/EASY_CONTEXT_WORKSPACE-must-be-set}
+      target: ${EASY_CONTEXT_WORKSPACE:-/EASY_CONTEXT_WORKSPACE-must-be-set}
+      read_only: true
+      bind:
+        create_host_path: false  # never let the daemon create a root-owned dir
+    - type: bind
+      source: ${EASY_CONTEXT_HOME:-${HOME}/.easy-context}
+      target: ${EASY_CONTEXT_HOME:-${HOME}/.easy-context}
+      bind:
+        create_host_path: false
+
+services:
+  stdio:
+    <<: *common
+    stdin_open: true
+    network_mode: none
+
+  service:
+    <<: *common
+    command: ["--transport", "streamable-http"]
+    restart: unless-stopped
+    network_mode: host
+    cpus: 2
+    mem_limit: 2g
+    environment:
+      <<: *common-env
+      EASY_CONTEXT_PORT: ${EASY_CONTEXT_PORT:-8767}

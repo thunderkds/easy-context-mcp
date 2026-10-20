@@ -158,6 +158,8 @@ def test_search_during_job_serves_committed_and_flags_indexing(tmp_path, runners
     assert res["indexing"] is True and res["indexed"] is True and res["hits"]
     sl = tools.get_slice(p, res["hits"][0]["id"], indexing=r.indexing(p))
     assert sl["indexing"] is True
+    rel = tools.get_related(p, slice_id=res["hits"][0]["id"], indexing=r.indexing(p))
+    assert rel["indexing"] is True and rel["indexed"] is True
     done(r, p)
     res = tools.search_semantic(p, "alpha 3", embedder=emb, indexing=r.indexing(p))
     assert res["indexing"] is False
@@ -401,9 +403,9 @@ def test_failed_job_keeps_previous_state_and_records_error(tmp_path, runners):
     assert entry["status"] == "failed" and "No space left" in entry["last_error"]
 
 
-# --- Schema: an index written by the pre-HUN-10 code opens and gets a job -------------------------
+# --- Schema: jobs is bookkeeping, outside the index schema version -----------------------------
 
-MAIN_SCHEMA = """
+V1_SCHEMA = """
 CREATE TABLE meta (key TEXT PRIMARY KEY, value TEXT NOT NULL);
 CREATE TABLE files (path TEXT PRIMARY KEY, sha256 TEXT NOT NULL, size INTEGER, mtime_ns INTEGER);
 CREATE TABLE slices (
@@ -411,18 +413,46 @@ CREATE TABLE slices (
     start_line INTEGER NOT NULL, end_line INTEGER NOT NULL, text TEXT NOT NULL,
     chunk_hash TEXT NOT NULL, vector BLOB NOT NULL, heading_path TEXT, heading_level INTEGER
 );
-CREATE INDEX slices_path ON slices(path);
 PRAGMA user_version=1;
 """
 
 
-def test_pre_hun10_index_opens_and_gets_a_job(tmp_path, runners, home):
+def _drop_jobs_table(path):
+    """Make the index look as if the pre-HUN-10 code (same schema version) had written it."""
+    con = sqlite3.connect(path)
+    con.execute("DROP TABLE jobs")
+    con.commit()
+    con.close()
+
+
+def test_current_schema_index_without_jobs_gets_jobs_without_rebuild(tmp_path, runners, home):
+    root = make_files(tmp_path / "repo", 3)
+    p = project(root)
+    tools.index_path(p, ".", embedder=FakeEmbedder())  # sync body, as main's code wrote it
+    path = config.index_file(p.project_id)
+    _drop_jobs_table(path)
+    slices_before = db_rows(home, p, "SELECT id, vector FROM slices ORDER BY id")
+    generation = int(db_rows(home, p, "SELECT value FROM meta WHERE key='generation'")[0][0])
+    assert db_rows(home, p, "PRAGMA user_version") == [(store.SCHEMA_VERSION,)]
+    r = runners(SlowEmbedder(delay=0))
+    (entry,) = r.list_indexes(p)
+    assert entry["status"] is None and entry["files"] == 3  # read path copes without jobs
+    r.submit(p, ".")
+    assert done(r, p)["status"] == "done"
+    assert db_rows(home, p, "PRAGMA user_version") == [(store.SCHEMA_VERSION,)]
+    assert db_rows(home, p, "SELECT count(*) FROM jobs")[0][0] == 1
+    assert db_rows(home, p, "SELECT id, vector FROM slices ORDER BY id") == slices_before
+    # no rebuild: a rebuild bumps the generation; unchanged files commit nothing
+    assert int(db_rows(home, p, "SELECT value FROM meta WHERE key='generation'")[0][0]) == generation
+
+
+def test_v1_index_is_rebuilt_then_gets_jobs(tmp_path, runners, home):
     root = make_files(tmp_path / "repo", 3)
     p = project(root)
     path = config.index_file(p.project_id)
     path.parent.mkdir(parents=True)
     con = sqlite3.connect(path)
-    con.executescript(MAIN_SCHEMA)
+    con.executescript(V1_SCHEMA)
     con.execute("INSERT INTO meta VALUES ('model_id', ?), ('generation', '1')",
                 (FakeEmbedder.model_id,))
     con.execute("INSERT INTO files VALUES ('old.py', 'x', 1, 1)")
@@ -431,13 +461,15 @@ def test_pre_hun10_index_opens_and_gets_a_job(tmp_path, runners, home):
     con.commit()
     con.close()
     r = runners(SlowEmbedder(delay=0))
-    assert r.list_indexes(p)[0]["status"] is None  # no jobs table yet: read path copes
-    r.submit(p, ".")
+    assert r.list_indexes(p)[0]["status"] is None  # old version: listed, not an error
+    st = r.submit(p, ".")  # old index counts as empty: everything will be embedded
+    assert st["files_total"] == 3
     assert done(r, p)["status"] == "done"
-    assert db_rows(home, p, "PRAGMA user_version") == [(1,)]
-    assert db_rows(home, p, "SELECT count(*) FROM jobs")[0][0] == 1
-    assert {r[0] for r in db_rows(home, p, "SELECT path FROM files")} == {
-        f"mod_{i:03}.py" for i in range(3)}  # old.py gone from disk -> removed
+    assert db_rows(home, p, "PRAGMA user_version") == [(store.SCHEMA_VERSION,)]
+    assert db_rows(home, p, "SELECT count(*), max(status) FROM jobs")[0] == (1, "done")
+    assert {row[0] for row in db_rows(home, p, "SELECT path FROM files")} == {
+        f"mod_{i:03}.py" for i in range(3)}  # rebuilt: old rows gone
+    assert tools.search_semantic(p, "alpha 1", embedder=FakeEmbedder())["hits"]
 
 
 # --- AC9 / FR-012: remote embedder only when key + base URL are set -------------------------------

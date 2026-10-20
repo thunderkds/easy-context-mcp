@@ -46,10 +46,44 @@ Team states: Backlog, Todo, In Progress, Done, Canceled, Duplicate — `push sta
 **Files**: .claude/board.json, PROJECT_KANBAN.md
 
 ### 2026-10-20 — A peer Claude session shares this checkout
-Peer session `easy-context-mcp-89` commits on local `main` too (DDR-0002, PRD FR-026..028, HUN-16/HUN-17, a kanban commit). `git add -A` in this session swept its uncommitted PRD.md edit into commit 9360d89. Stage files by name; check `git log` for foreign commits before merging; Ownership (user, 2026-10-20): the peer session covers HUN-16 and HUN-17; this session does everything else.
+Peer session `easy-context-mcp-89` commits on local `main` too (DDR-0002, PRD FR-026..028, HUN-16/HUN-17, a kanban commit). `git add -A` in this session swept its uncommitted PRD.md edit into commit 9360d89. Stage files by name; check `git log` for foreign commits before merging; Ownership (user, 2026-10-20): the peer session covers HUN-16 and HUN-17; this session does everything else. Update (user, 2026-10-20): HUN-11 moved to the peer session too (HUN-17 depends on it).
 **Files**: PRD.md, PROJECT_KANBAN.md, docs/ddr/0002-code-symbol-slices-and-graph.md
 
 ### 2026-10-20 — Merge gate blocks read-only merge commands too
 `pre_bash_block_unsafe_merge` blocks any command containing a merge (even `git merge-tree` previews) while a task is In Progress. Set Done first, then preview/merge. Conflicts between parallel tasks go back to the later task's agent (`git merge main` in its worktree) — the Supervisor does not write the resolution.
 **Files**: .claude/hooks/pre_bash_block_unsafe_merge.py
 
+### 2026-10-20 — tree-sitter facts (HUN-16)
+- `tree-sitter==0.26.0` segfaults walking large real files (stdlib typing.py); pinned `>=0.25.2,<0.26`. A segfault kills the whole server process.
+- tree-sitter-kotlin 1.1.0: a one-line class/object body (`object O { fun o() {} }`) parses as ERROR → that file falls back to line windows.
+- Grammar wheels add ~10.3 MiB installed (kotlin 3.5, typescript 3.0); manylinux x86_64 + aarch64 wheels exist for CPython 3.10–3.13.
+- Symbol slicing makes ~5x more slices on code-heavy repos; first index ~4.5x slower (re-runs hit the embed cache).
+**Files**: pyproject.toml, src/easy_context_mcp/symbols.py
+
+### 2026-10-20 — Calling easy-verifier without its MCP tools loaded
+When the session has no `easy-verifier` tools, call http://127.0.0.1:8766/mcp over JSON-RPC (initialize → `mcp-session-id` header → notifications/initialized → tools/call). `write_report` findings need title, detail, dimension, severity, confidence ('low'|'medium'|'high') and an evidence_ref `path:start-end` that exists in that dimension's evidence pack; otherwise pass `findings: []` and put the review summary in `agent_input.summary`.
+**Files**: PROJECT_SPEC.md
+
+### 2026-10-20 — FastMCP sync tools run on the event loop; Linux nice is per thread (HUN-10)
+`mcp/server/fastmcp/utilities/func_metadata.py:115` calls a sync tool directly (`return fn(**arguments_parsed_dict)`), so any long sync tool blocks every other call. `os.nice()` in a thread changes only that thread on Linux (probe: worker 12, main 5); ONNX Runtime pool threads inherit the nice of the thread that creates the session. The Supervisor's spawn note had both wrong — verify runtime claims before putting them in a guide.
+**Files**: src/easy_context_mcp/jobs.py, src/easy_context_mcp/server.py
+
+### 2026-10-20 — Docker `create_host_path` default creates root-owned dirs (HUN-13)
+With the family default (`create_host_path: true`), an unset `EASY_CONTEXT_WORKSPACE` made Docker create a root-owned `/EASY_CONTEXT_WORKSPACE-is-not-set` on the host and `up` succeeded. Use `create_host_path: false` so `up` fails with a mount error. The same default exists in ../easy-verifier-mcp/compose.yaml. Leftover dir needs `sudo rmdir` by the user.
+**Files**: compose.yaml
+
+### 2026-10-20 — easy-verifier change_risk 0 is often a naming artefact
+The `feature` rule `new_code_without_test_share` pairs `foo.py` with `test_foo.py` only; this repo names tests by feature (test_hygiene.py, test_jobs.py), so change_risk reads 0 even with full coverage. Report it as an artefact, not missing tests. It also counts new `tests/fixtures/**/*.py` as new code. `agent_input.change_kind` must be an object `{"value": "feature", "reason": "..."}` — a bare string is rejected silently (falls back to `detected`).
+**Files**: tests/test_hygiene.py, tests/test_jobs.py
+
+### 2026-10-20 — Never `ruff --fix` test fixtures
+`ruff check --fix tests` strips "unused" imports from fixture repos (tests/fixtures/graph_repo/app.py, pkg/sub.py), breaking the import-edge tests. Fixture .py files start with `# ruff: noqa`; run `--fix` only on src/ and tests/*.py.
+**Files**: tests/fixtures/graph_repo/
+
+### 2026-10-20 — Complexity: easy-verifier counts more than ruff mccabe (HUN-18)
+easy-verifier `max_function_ccn` (threshold 15) adds boolean operators and comprehension clauses; ruff C901 does not, so ruff can pass at 10 while the verifier reads 19. Measure with an ast count (+1 per if/for/while/ifexp/except/with/assert, +n-1 per BoolOp, +1+ifs per comprehension) — it reproduced the verifier's 19 exactly.
+**Files**: src/easy_context_mcp/graph.py, src/easy_context_mcp/symbols.py
+
+### 2026-10-20 — Golden snapshots pin index output (HUN-18)
+`tests/test_refactor_golden.py` + `tests/golden_dump.py` compare every slice and edge row of the four fixture repos to `tests/fixtures/golden/*.txt`. Any task that intentionally changes chunking, symbols, refs or edges will fail it: regenerate the snapshots on purpose in that task (and say so in its review), never to silence a refactor. For whole-repo checks, index a frozen `git archive` copy, not the live tree.
+**Files**: tests/test_refactor_golden.py, tests/golden_dump.py, tests/fixtures/golden/

@@ -9,14 +9,8 @@
 ## Board
 
 ### Todo
-- [ ] **HUN-10** — Background jobs: non-blocking index_path, progress/ETA, single writer, low priority | Backend-Implementer | C3 | Risk: Medium | P0 | @hungnh1110 | Guide: `tasks/TASK_GUIDE_HUN-10.md`
-- [ ] **HUN-11** — Graph edges + get_related (1-hop) | Backend-Implementer | C2 | Risk: Medium | P1 | @hungnh1110 | Guide: `tasks/TASK_GUIDE_HUN-11.md`
-- [ ] **HUN-12** — Stats: get_stats served counters, final list_indexes fields | Backend-Implementer | C1 | Risk: Low | P1 | @hungnh1110 | Guide: `tasks/TASK_GUIDE_HUN-12.md`
-- [ ] **HUN-13** — Docker service: image with baked model, compose stdio + shared service, hardening | Common-Infrastructure-Agent | C2 | Risk: Medium | P0 | @hungnh1110 | Guide: `tasks/TASK_GUIDE_HUN-13.md`
 - [ ] **HUN-14** — Timed refresh, orphan cleanup, worktree embed reuse | Backend-Implementer | C2 | Risk: Medium | P1 | @hungnh1110 | Guide: `tasks/TASK_GUIDE_HUN-14.md`
 - [ ] **HUN-15** — Docs + end-to-end: README install, limits, SECURITY.md, LICENSE, Easy Kit policy | QA-Automation-Agent | C1 | Risk: Low | P1 | @hungnh1110 | Guide: `tasks/TASK_GUIDE_HUN-15.md`
-- [ ] **HUN-16** — Code symbol slices (tree-sitter: Python, JS/TS, Java/Kotlin) + symbol-name match in search_semantic | Backend-Implementer | C3 | Risk: Medium | P1 | @hungnh1110 | Guide: `tasks/TASK_GUIDE_HUN-16.md`
-- [ ] **HUN-17** — Symbol graph edges (calls, called_by, contains, extends) in get_related | Backend-Implementer | C2 | Risk: Medium | P1 | @hungnh1110 | Guide: `tasks/TASK_GUIDE_HUN-17.md`
 
 ### In Progress
 
@@ -28,6 +22,13 @@
 - [x] **HUN-7** — First full path: index_path → search_semantic → get_slice with caps | Backend-Implementer | C3 | Risk: High | P0 | @hungnh1110 | Guide: `tasks/TASK_GUIDE_HUN-7.md`
 - [x] **HUN-8** — File hygiene: binaries, secrets, size, nested .git, hash skip, deletions | Backend-Implementer | C2 | Risk: High | P0 | @hungnh1110 | Guide: `tasks/TASK_GUIDE_HUN-8.md`
 - [x] **HUN-9** — Markdown heading chunks, stable slice ids, non-UTF-8 files | Backend-Implementer | C1 | Risk: Low | P1 | @hungnh1110 | Guide: `tasks/TASK_GUIDE_HUN-9.md`
+- [x] **HUN-10** — Background jobs: non-blocking index_path, progress/ETA, single writer, low priority | Backend-Implementer | C3 | Risk: Medium | P0 | @hungnh1110 | Guide: `tasks/TASK_GUIDE_HUN-10.md`
+- [x] **HUN-11** — Graph edges + get_related (1-hop) | Backend-Implementer | C2 | Risk: Medium | P1 | @hungnh1110 | Guide: `tasks/TASK_GUIDE_HUN-11.md`
+- [x] **HUN-12** — Stats: get_stats served counters, final list_indexes fields | Backend-Implementer | C1 | Risk: Low | P1 | @hungnh1110 | Guide: `tasks/TASK_GUIDE_HUN-12.md`
+- [x] **HUN-13** — Docker service: image with baked model, compose stdio + shared service, hardening | Common-Infrastructure-Agent | C2 | Risk: Medium | P0 | @hungnh1110 | Guide: `tasks/TASK_GUIDE_HUN-13.md`
+- [x] **HUN-16** — Code symbol slices (tree-sitter: Python, JS/TS, Java/Kotlin) + symbol-name match in search_semantic | Backend-Implementer | C3 | Risk: Medium | P1 | @hungnh1110 | Guide: `tasks/TASK_GUIDE_HUN-16.md`
+- [x] **HUN-17** — Symbol graph edges (calls, called_by, contains, extends) in get_related | Backend-Implementer | C2 | Risk: Medium | P1 | @hungnh1110 | Guide: `tasks/TASK_GUIDE_HUN-17.md`
+- [x] **HUN-18** — Refactor complex code-search functions (symbols.py, graph.py, chunking.py) below complexity limits, behaviour unchanged | Backend-Implementer | C2 | Risk: Medium | P2 | @hungnh1110 | Guide: `tasks/TASK_GUIDE_HUN-18.md`
 
 ### Closed (will not do)
 

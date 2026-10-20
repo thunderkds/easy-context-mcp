@@ -285,17 +285,17 @@ def test_index_written_with_hun7_schema_opens_and_indexes(tmp_path, home):
     con = sqlite3.connect(db)
     con.execute("ALTER TABLE files DROP COLUMN size")
     con.execute("ALTER TABLE files DROP COLUMN mtime_ns")
+    con.execute("PRAGMA user_version=1")
     con.commit()
     assert [r[1] for r in con.execute("PRAGMA table_info(files)")] == ["path", "sha256"]
-    assert con.execute("PRAGMA user_version").fetchone()[0] == 1
     con.close()
 
     emb = FakeEmbedder()
-    res = run(p, emb)  # NULL size/mtime: hashed once, hash matches, nothing re-embedded
-    assert res["files_embedded"] == 0 and emb.texts_embedded == 0 and res["files"] == 1
+    res = run(p, emb)  # HUN-16: a v1 index is rebuilt; vectors come from the embed cache
+    assert res["files_embedded"] == 1 and emb.texts_embedded == 0 and res["files"] == 1
     size, mtime = db_rows(home, p, "SELECT size, mtime_ns FROM files")[0]
     assert size == (root / "a.py").stat().st_size and mtime == (root / "a.py").stat().st_mtime_ns
-    assert db_rows(home, p, "PRAGMA user_version") == [(1,)]
+    assert db_rows(home, p, "PRAGMA user_version") == [(4,)]
     assert run(p)["files_unchanged"] == 1
 
 
