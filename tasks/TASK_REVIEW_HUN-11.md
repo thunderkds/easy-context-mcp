@@ -41,9 +41,54 @@ run at 2026-10-20T10:10:36.033615+00:00
 ERROR: ToolError Error executing tool get_related: not_implemented: get_related is not implemented yet
 ```
 
-**AFTER**: [same command, post-change] OR [verbatim excerpt of the new content]
+**AFTER**: captured 2026-10-20T10:14:33Z on branch hun-11-graph, same script against `tests/fixtures/graph_repo` (first slice id of `app.py`):
 
-**DELTA**: [one sentence — what a user can now do that they could not before]
+```
+$ uv run python demo.py tests/fixtures/graph_repo '{"slice_id_of":"app.py"}'
+run at 2026-10-20T10:14:33.736411+00:00
+{
+  "project_id": "repo-b98e8e8e7402",
+  "root": "/tmp/tmpoqgeoeo8/repo",
+  "indexed": true,
+  "source": {
+    "slice_id": "a8e2d484fc7f2762",
+    "path": "app.py"
+  },
+  "related": [
+    {
+      "id": "89c2e51e23fd62cb",
+      "path": "auth.py",
+      "start_line": 1,
+      "end_line": 1,
+      "edge_type": "import",
+      "direction": "out",
+      "preview": "\"\"\"Password checks.\"\"\""
+    },
+    {
+      "id": "0594372fae955af5",
+      "path": "utils/helpers.py",
+      "start_line": 1,
+      "end_line": 3,
+      "edge_type": "import",
+      "direction": "out",
+      "preview": "\"\"\"Formatting helpers.\"\"\" from . import more"
+    },
+    {
+      "id": "2008ae7103668b8f",
+      "path": "app.py",
+      "start_line": 12,
+      "end_line": 14,
+      "edge_type": "same_file",
+      "preview": "def main(user, password): if verify_password(user, password): return fmt(user[\"name\"])",
+      "symbol": "main",
+      "kind": "function"
+    }
+  ],
+  "dropped": 0
+}
+```
+
+**DELTA**: an agent can now call `get_related` with a slice id or a file path and get the files and sections that import, link, contain or sit next to it, instead of a not_implemented error.
 
 **WITNESS**: [who ran it and when — derived from `memory/event-trace/Txxx.jsonl`, never the
 implementing agent alone]
