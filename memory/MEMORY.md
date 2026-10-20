@@ -36,5 +36,5 @@
 - [Sub-agents cannot invoke skills](learnings.md) — no Skill tool; Supervisor runs Stage 4 skills.
 - [Linear: no review state](learnings.md) — evidence complete → push status done → pull → merge → push.
 - [File hygiene policy](decisions.md#architecture) — skip reasons object, secret basename list, binary sniff, capped read, size+mtime→hash change detection, removal.
-- [Peer session shares checkout](learnings.md) — easy-context-mcp-89 commits on main; never `git add -A`; stage by name.
+- [Peer session shares checkout](learnings.md) — easy-context-mcp-89 commits on main; owns HUN-16/17; never `git add -A`; stage by name.
 - [Merge gate blocks merge-tree too](learnings.md) — set Done first; conflicts go back to the task's agent.
