@@ -14,15 +14,18 @@
 
 | Check | Result | Notes / output snippet |
 |-------|--------|------------------------|
-| **New test(s) cover Acceptance Criteria (file paths pasted)** | ☐ pass / ☐ fail | [test file path(s) — required before Done] |
-| Verification command run | ☐ pass / ☐ fail | [paste actual output] |
-| Negative cases hold | ☐ pass / ☐ fail | |
-| verify | ☐ pass / ☐ fail / ☐ N/A | [what was observed — must literally state "pass" or "fail" here too, e.g. "skill run, feature confirmed working — pass": the merge gate scans this Notes column for the word "pass", not just the Result column] |
-| Review scope bounded to the change's blast radius (affected set, not whole repo) | ☐ pass / ☐ fail | [what was reviewed vs. skipped, and why] |
-| Full smoke suite still green (no regression) | ☐ pass / ☐ fail | |
-| **UI: Visual regression (diff or verdict pasted)** | ☐ pass / ☐ fail / ☐ N/A | [screenshot path or LLM verdict — required for UI tasks, Hard-Stop Gate 6] |
-| **UI: Design-system compliance (tokens/colors/typography verified)** | ☐ pass / ☐ fail / ☐ N/A | [method used + output] |
-| **UI: Responsiveness at target viewports** | ☐ pass / ☐ fail / ☐ N/A | [viewports tested, any overflow findings] |
+| **New test(s) cover Acceptance Criteria (file paths pasted)** | ☑ pass | tests/test_refactor_golden.py (new, 8 tests: slice+edge dump and small-cap chunk dump for sample_repo, symbols_repo, calls_repo, graph_repo) with helpers tests/golden_dump.py and snapshots tests/fixtures/golden/*.txt committed in 8f03be7 before any src/ change (AC1, AC6) |
+| Verification command run | ☑ pass | 2026-10-20T10:48:25Z (Supervisor re-run at c3af9a3) `FASTEMBED_CACHE_PATH=/tmp/spike1/cache uv run pytest -q` → 267 passed, 6 warnings in 9.29s; `uv run ruff check src tests` → All checks passed!; `uv run ruff check src --select C901 --config 'lint.mccabe.max-complexity=10'` → All checks passed! (BEFORE: 5 errors, symbol_edges 26) |
+| Negative cases hold | ☑ pass | golden dumps include split n/N parts (small-cap chunk dump), line-window fallback files, Kotlin/Java, Markdown headings, ambiguous/no-edge cases (calls_repo); no existing test assertion edited (git diff of existing test files empty) |
+| verify | ☑ pass | Supervisor independent whole-repo oracle: frozen copy of main 8dc702b indexed with main code vs refactored code (fake embedder) → 11,249-line slice+edge dump byte-identical (`cmp`) after both f11d461 and c3af9a3 — pass. Agent timings (2,552 files, best of 3): chunk 8.53→8.49 s, symbol_edges 0.42→0.44 s (+5%, AC5 within 10%) |
+| Review scope bounded to the change's blast radius (affected set, not whole repo) | ☑ pass | symbols.py, graph.py, chunking.py + new tests; public names/signatures unchanged; store.py/tools.py/server.py untouched. lane_check over-size is the snapshot files |
+| Full smoke suite still green (no regression) | ☑ pass | 267 passed incl. all earlier suites |
+| Code review (Stage 4) | ☑ pass | AC3 failed first (easy-verifier max_function_ccn 19: `_Resolver.resolve`; `_declaration`/`_collect` 17 by the same counting) — fixed c3af9a3, all functions ≤ 12 by verifier-style count; P1 process: agent skipped agents/backend.md + DDR-0002 at startup, read on request, no conflict. Report: reports/code-review_hun-18-refactor_20261020T175000.html |
+| Security review (manual; built-in needs `origin`) | ☑ pass | no new I/O, SQL, dependencies or inputs; pure function extraction proven by byte-identical output. Report: reports/security-review_hun-18-refactor_20261020T175000.html |
+| easy-verifier confidence (advisory, PROJECT_SPEC Stage 4 Add-on) | overall: 68 · change_risk: 50 | overall 68 (rated: architecture 100, code-quality 87 (was 33 on HUN-17), requirement-fidelity 67, test-strategy 75, blast-radius 50, security 30; 7 of 13 abstained). AC3 met: max_function_ccn passes (≤ 15). change_risk 50 (refactor, confirmed): refactor_tests_deleted 0 pass; refactor_uncovered_share 0.33 (name-paired test lookup finds no test_chunking.py — chunking is covered by test_chunking_md.py and the golden tests). blast-radius: public_symbols_removed 1 = nested closure `add` inside `_python_targets` (false positive); churn-hotspot share 0.21. security 30 = known false positives (harness-lock.json). Report: reports/easy-verifier_HUN-18_20261020T174853.html |
+| **UI: Visual regression (diff or verdict pasted)** | ☐ N/A | pure backend task, no UI |
+| **UI: Design-system compliance (tokens/colors/typography verified)** | ☐ N/A | pure backend task, no UI |
+| **UI: Responsiveness at target viewports** | ☐ N/A | pure backend task, no UI |
 
 ---
 
@@ -70,5 +73,4 @@ ruff check src tests: All checks passed!
 
 **DELTA**: [one sentence — what a user can now do that they could not before]
 
-**WITNESS**: [who ran it and when — derived from `memory/event-trace/Txxx.jsonl`, never the
-implementing agent alone]
+**WITNESS**: Supervisor re-ran the suite (2026-10-20T10:48:25Z) and an independent whole-repo golden diff of a frozen main copy (byte-identical) apart from the implementing agent; trace `memory/event-trace/HUN-18.jsonl`. Final AFTER timings (c3af9a3): chunk 8.49 s, symbol_edges 0.44 s.
