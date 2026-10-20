@@ -14,16 +14,16 @@
 
 | Check | Result | Notes / output snippet |
 |-------|--------|------------------------|
-| **New test(s) cover Acceptance Criteria (file paths pasted)** | ☐ pass / ☐ fail | [test file path(s) — required before Done] |
-| Verification command run | ☐ pass / ☐ fail | [paste actual output] |
-| Negative cases hold | ☐ pass / ☐ fail | |
-| verify | ☐ pass / ☐ fail / ☐ N/A | [what was observed — must literally state "pass" or "fail" here too, e.g. "skill run, feature confirmed working — pass": the merge gate scans this Notes column for the word "pass", not just the Result column] |
-| Review scope bounded to the change's blast radius (affected set, not whole repo) | ☐ pass / ☐ fail | [what was reviewed vs. skipped, and why] |
-| Full smoke suite still green (no regression) | ☐ pass / ☐ fail | |
-| easy-verifier confidence (advisory, PROJECT_SPEC Stage 4 Add-on) | overall: — · change_risk: — | [filled by Supervisor] |
-| **UI: Visual regression (diff or verdict pasted)** | ☐ pass / ☐ fail / ☐ N/A | [screenshot path or LLM verdict — required for UI tasks, Hard-Stop Gate 6] |
-| **UI: Design-system compliance (tokens/colors/typography verified)** | ☐ pass / ☐ fail / ☐ N/A | [method used + output] |
-| **UI: Responsiveness at target viewports** | ☐ pass / ☐ fail / ☐ N/A | [viewports tested, any overflow findings] |
+| **New test(s) cover Acceptance Criteria (file paths pasted)** | ☑ pass | scripts/smoke_docker.sh (AC1 offline model load, AC2 loopback-only + initialize, AC3 unset workspace fails up, AC4 host paths + outside-workspace rejected, AC5 persistence across restart, AC6 hardening via docker inspect, AC7 stdio service) + tests/test_binding.py (7 workspace-ceiling tests) |
+| Verification command run | ☑ pass | 2026-10-20T10:16:27Z `bash scripts/smoke_docker.sh` → ALL SMOKE CHECKS PASSED, exit 0; `uv run pytest -q` → 189 passed, 6 warnings in 27.78s (Supervisor re-run) |
+| Negative cases hold | ☑ pass | unset workspace → mount error naming the variable; outside-workspace root rejected; not reachable on 192.168.0.102 |
+| verify | ☑ pass | Supervisor smoke run: index + search over HTTP and stdio inside the container, top hit inventory.py 1-60; index file on host owned by uid 1000 — pass |
+| Review scope bounded to the change's blast radius (affected set, not whole repo) | ☑ pass | Dockerfile, .dockerignore, compose.yaml, scripts/download_model.py, scripts/smoke_docker.sh, binding.py, config.py, tests/test_binding.py |
+| Full smoke suite still green (no regression) | ☑ pass | 189 passed; easy-verifier and easy-ui containers still running untouched |
+| easy-verifier confidence (advisory, PROJECT_SPEC Stage 4 Add-on) | overall: 73 · change_risk: 0 (naming artefact) | overall 73 (rated: architecture 100, requirement-fidelity 67, code-quality 87, security 59, test-strategy 60, blast-radius 65; 7 of 13 abstained; diff base hun-10-jobs) · change_risk: 0 (feature rule pairs tests by file name; config.py and scripts/download_model.py have no test_<name>.py — covered by tests/test_binding.py and the smoke script, so a naming artefact). Security 59: redaction hits are the known framework harness-lock.json sha256 values. Report: reports/easy-verifier_HUN-13_20261020T171745.html |
+| **UI: Visual regression (diff or verdict pasted)** | ☐ N/A | infrastructure task, no UI |
+| **UI: Design-system compliance (tokens/colors/typography verified)** | ☐ N/A | infrastructure task, no UI |
+| **UI: Responsiveness at target viewports** | ☐ N/A | infrastructure task, no UI |
 
 ---
 
@@ -91,5 +91,4 @@ ALL SMOKE CHECKS PASSED
 
 **DELTA**: A user can now run one hardened container on 127.0.0.1:8767 (or a one-shot offline stdio container) that indexes and searches repos under a workspace using host paths.
 
-**WITNESS**: [who ran it and when — derived from `memory/event-trace/Txxx.jsonl`, never the
-implementing agent alone]
+**WITNESS**: Supervisor (claude-opus-5-5): smoke re-run 2026-10-20T10:16:27Z, pytest re-run 10:17Z; trace memory/event-trace/HUN-13.jsonl.
