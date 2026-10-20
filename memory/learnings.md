@@ -87,3 +87,8 @@ easy-verifier `max_function_ccn` (threshold 15) adds boolean operators and compr
 ### 2026-10-20 — Golden snapshots pin index output (HUN-18)
 `tests/test_refactor_golden.py` + `tests/golden_dump.py` compare every slice and edge row of the four fixture repos to `tests/fixtures/golden/*.txt`. Any task that intentionally changes chunking, symbols, refs or edges will fail it: regenerate the snapshots on purpose in that task (and say so in its review), never to silence a refactor. For whole-repo checks, index a frozen `git archive` copy, not the live tree.
 **Files**: tests/test_refactor_golden.py, tests/golden_dump.py, tests/fixtures/golden/
+
+### 2026-10-20 — Branches built on an old schema strategy need a full re-integration
+HUN-10/12/13 were built when the index used additive ALTERs at v1; the peer session's HUN-16/11/17 moved main to versioned rebuilds (v3 → v4). Every long-lived branch then conflicted in store.py/tools.py. Integration = the task's own agent runs `git merge main` with an explicit resolution brief; the Supervisor never writes the resolution. Keep parallel branches short-lived when another session owns the schema.
+**Files**: src/easy_context_mcp/store.py, src/easy_context_mcp/tools.py, src/easy_context_mcp/jobs.py
+
