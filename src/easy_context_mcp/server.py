@@ -79,10 +79,22 @@ def create_app(
         return tools.get_slice(_bind(ctx, root, service_mode), slice_id)
 
     @app.tool()
-    def get_related(ctx: Context, slice_id: str, root: str | None = None) -> dict[str, Any]:
-        """Fetch 1-hop related slices."""
-        _bind(ctx, root, service_mode)
-        not_implemented("get_related")
+    def get_related(
+        ctx: Context,
+        slice_id: str | None = None,
+        path: str | None = None,
+        limit: int = 10,
+        root: str | None = None,
+    ) -> dict[str, Any]:
+        """Fetch 1-hop related slices of one slice (`slice_id`) or one file (`path`); pass one.
+
+        Edge types: `import` / `link` (between files, with `direction` out/in; the neighbour is
+        the other file's first slice), `parent` / `child` (Markdown headings) and `same_file`
+        (neighbouring slices). Up to `limit` (default 10) neighbours with path + line range;
+        extra ones are counted in `dropped`.
+        """
+        project = _bind(ctx, root, service_mode)
+        return tools.get_related(project, slice_id, path, limit)
 
     @app.tool()
     def list_indexes(ctx: Context, root: str | None = None) -> dict[str, Any]:
