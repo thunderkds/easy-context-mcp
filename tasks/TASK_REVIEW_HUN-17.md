@@ -104,46 +104,52 @@ for path, sym in [("app.py", "run"), ("auth.py", "authenticate"), ("app.py", "Se
         print(f"   {n['edge_type']:10} {n['path']}:{n['start_line']}-{n['end_line']} {n.get('symbol')}")
 ```
 
-**AFTER** (same script, 2026-10-20T10:28:14Z, branch hun-17-symbol-graph; `calls`, `called_by`, `contains` and `extends` rank first, file-level imports last; with limit 4 on `run` the 4 callees still appear although app.py has 5 imports):
+**AFTER** (same script, re-captured 2026-10-20T10:32:37Z after the receiver fix; the fixture gained `stock.py`, `import auth` and `out.append(...)` in `run`; `calls`, `called_by`, `contains` and `extends` rank first, file-level imports last; with limit 4 on `run` its callees still appear although app.py has 6 imports). A call on a non-self receiver (`x.f()`) resolves only when `x` is a class (`Inventory.add`) or an imported file (`auth.check`); `out.append(...)` makes no edge even though a unique project function `append` exists. On this repo, 935 `calls` edges and none into `append`:
 
 ```text
 == app.py::run
-   calls      app.py:19-20 helper
+   calls      app.py:21-22 helper
    calls      auth.py:1-3 normalize
    calls      auth.py:6-7 authenticate
+   calls      auth.py:10-11 check
+   calls      stock.py:3-4 Inventory.add
    calls      util.py:1-3 shared_util
-   same_file  app.py:19-20 helper
+   same_file  app.py:21-22 helper
    import     auth.py:1-3 normalize
    import     m1.py:1-2 None
    import     m2.py:1-2 None
    import     m3.py:1-2 None
    import     m4.py:1-2 None
+   import     stock.py:1-2 Inventory
 == auth.py::authenticate
    calls      auth.py:1-3 normalize
-   called_by  app.py:23-30 run
+   called_by  app.py:25-36 run
    same_file  auth.py:1-3 normalize
-   import     app.py:1-3 None
+   same_file  auth.py:10-11 check
+   import     app.py:1-5 None
 == app.py::Service.start
-   calls      app.py:15-16 Service.stop
-   calls      app.py:19-20 helper
-   same_file  app.py:10-10 Service
-   same_file  app.py:15-16 Service.stop
+   calls      app.py:17-18 Service.stop
+   calls      app.py:21-22 helper
+   same_file  app.py:12-12 Service
+   same_file  app.py:17-18 Service.stop
    import     auth.py:1-3 normalize
    import     m1.py:1-2 None
    import     m2.py:1-2 None
    import     m3.py:1-2 None
    import     m4.py:1-2 None
+   import     stock.py:1-2 Inventory
 == app.py::Service
-   contains   app.py:11-13 Service.start
-   contains   app.py:15-16 Service.stop
-   extends    app.py:6-7 Base
-   same_file  app.py:6-7 Base
-   same_file  app.py:11-13 Service.start
+   contains   app.py:13-15 Service.start
+   contains   app.py:17-18 Service.stop
+   extends    app.py:8-9 Base
+   same_file  app.py:8-9 Base
+   same_file  app.py:13-15 Service.start
    import     auth.py:1-3 normalize
    import     m1.py:1-2 None
    import     m2.py:1-2 None
    import     m3.py:1-2 None
    import     m4.py:1-2 None
+   import     stock.py:1-2 Inventory
 == web/repo.ts::Repo
    contains   web/repo.ts:10-12 Repo.add
    contains   web/repo.ts:14-14 Repo.save
@@ -153,8 +159,10 @@ for path, sym in [("app.py", "run"), ("auth.py", "authenticate"), ("app.py", "Se
    same_file  web/repo.ts:10-12 Repo.add
    import     web/fmt.ts:1-3 formatTotal
 == jvm/Shipper.java::Shipper
+   called_by  jvm/Shipper.java:14-16 Shipper.create
    contains   jvm/Shipper.java:8-10 Shipper.ship
    contains   jvm/Shipper.java:12-12 Shipper.load
+   contains   jvm/Shipper.java:14-16 Shipper.create
    extends    jvm/Shipper.java:3-3 Carrier
    extends    jvm/Shipper.java:5-5 Trackable
    same_file  jvm/Shipper.java:5-5 Trackable
@@ -166,18 +174,19 @@ for path, sym in [("app.py", "run"), ("auth.py", "authenticate"), ("app.py", "Se
    same_file  jvm/Billing.kt:11-11 None
    same_file  jvm/Billing.kt:14-14 Ledger.post
 == app.py::helper
-   called_by  app.py:11-13 Service.start
-   called_by  app.py:23-30 run
-   same_file  app.py:15-16 Service.stop
-   same_file  app.py:23-30 run
+   called_by  app.py:13-15 Service.start
+   called_by  app.py:25-36 run
+   same_file  app.py:17-18 Service.stop
+   same_file  app.py:25-36 run
    import     auth.py:1-3 normalize
    import     m1.py:1-2 None
    import     m2.py:1-2 None
    import     m3.py:1-2 None
    import     m4.py:1-2 None
+   import     stock.py:1-2 Inventory
 ```
 
-Known caller to callee pairs asserted in `tests/test_symbol_graph.py::test_known_pairs_appear_in_both_directions` (AC7, 6 pairs, each in both directions): run to helper, run to authenticate, authenticate to normalize, Service.start to Service.stop, checkout to formatTotal (ts), Dispatcher.dispatch to Shipper.ship (java).
+Known caller to callee pairs asserted in `tests/test_symbol_graph.py::test_known_pairs_appear_in_both_directions` (AC7, 6 pairs, each in both directions): run to helper, run to authenticate, authenticate to normalize, Service.start to Service.stop, checkout to formatTotal (ts), Dispatcher.dispatch to Shipper.create (java).
 
 **DELTA**: From a function or class slice, `get_related` now returns what it calls, what calls it, a class's members and its base types, ranked before imports and neighbours.
 

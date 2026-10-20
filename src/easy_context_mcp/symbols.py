@@ -8,7 +8,8 @@ outside symbols become gap slices (`symbol` None). Every non-blank line lands in
 Slices longer than the slice cap are split into consecutive parts `n/N`.
 
 The first slice of a symbol also carries `refs` (JSON): its enclosing symbol (`parent`), the
-call sites in its own body (`calls`, `[name, receiver]` with receiver None / "self" / "other") and
+call sites in its own body (`calls`, `[name, receiver]`: receiver None, "self", the receiver's
+identifier, or "?" for any other expression) and
 its base types (`bases`). Names only; `graph.symbol_edges` resolves them (FR-028).
 
 `symbol_pieces` returns None (caller falls back to line windows) when the extension is not
@@ -224,11 +225,12 @@ def _bases(node, src: bytes) -> list[str]:
 def _receiver(node, src: bytes) -> str | None:
     if node is None:
         return None
-    if node.type in ("this", "this_expression") or (
-        node.type == "identifier" and _text(src, node) in ("self", "cls")
-    ):
+    if node.type in ("this", "this_expression"):
         return "self"
-    return "other"
+    if node.type == "identifier":
+        text = _text(src, node)
+        return "self" if text in ("self", "cls") else text
+    return "?"
 
 
 def _call(node, src: bytes) -> tuple[str, str | None] | None:

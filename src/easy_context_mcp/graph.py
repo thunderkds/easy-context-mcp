@@ -174,7 +174,9 @@ def symbol_edges(
     the symbol's `refs` resolves, in order, to (1) for `self.x()` / `this.x()` (and bare calls in
     Java / Kotlin) a member of the enclosing class, (2) the only same-file symbol of that name,
     (3) the only symbol of that name in files this file imports, (4) the only symbol of that name
-    in the project. Two or more candidates at the first step that has any: no edge. A call to the
+    in the project. A call on another receiver (`x.f()`) resolves only when `x` names a class
+    (member `f` of that class) or an imported file (symbol `f` of the file whose name is `x`);
+    otherwise no edge, so `out.append(...)` never reaches an unrelated `append`. Two or more candidates at the first step that has any: no edge. A call to the
     caller's own name is recursion (or an overload): no edge. `extends` targets classes only.
     """
     syms = [(i, p, q, k, json.loads(r) if r else {}) for i, p, q, k, r in rows]
@@ -184,10 +186,34 @@ def symbol_edges(
         by_tail.setdefault(sym[2].rsplit(".", 1)[-1], []).append(sym)
         by_qualified.setdefault((sym[1], sym[2]), []).append(sym)
 
+    def member_of(path: str, name: str, receiver: str):
+        owner = resolve_name(path, receiver, _CLASSES)
+        if owner is not None:
+            hit = by_qualified.get((owner[1], f"{owner[2]}.{name}"), [])
+            return hit[0] if len(hit) == 1 else None
+        for dst in imports.get(path, ()):
+            stem = posixpath.splitext(posixpath.basename(dst))[0]
+            if stem == "__init__":
+                stem = posixpath.basename(posixpath.dirname(dst))
+            if stem == receiver:
+                hit = by_qualified.get((dst, name), [])
+                return hit[0] if len(hit) == 1 else None
+        return None
+
+    def resolve_name(path: str, name: str, kinds: tuple[str, ...]):
+        cands = [c for c in by_tail.get(name, []) if c[3] in kinds]
+        for pool in ([c for c in cands if c[1] == path],
+                     [c for c in cands if c[1] in imports.get(path, ())], cands):
+            if pool:
+                return pool[0] if len(pool) == 1 else None
+        return None
+
     def resolve(src, name: str, receiver: str | None, kinds: tuple[str, ...] | None):
         _, path, qualified, _, _ = src
         if name == qualified.rsplit(".", 1)[-1] and receiver in (None, "self") and kinds is None:
             return None
+        if receiver not in (None, "self"):
+            return member_of(path, name, receiver)
         cands = [c for c in by_tail.get(name, []) if kinds is None or c[3] in kinds]
         if receiver == "self" or (receiver is None and path.endswith(_IMPLICIT_THIS)):
             parts = qualified.split(".")[:-1]

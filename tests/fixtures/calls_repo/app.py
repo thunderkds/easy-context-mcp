@@ -1,5 +1,7 @@
 # ruff: noqa
+import auth
 from auth import authenticate
+from stock import Inventory
 import m1, m2, m3, m4
 
 
@@ -27,4 +29,8 @@ def run(user):
     normalize(user)
     run(user)
     print(user)
+    out = []
+    out.append(user)
+    auth.check(user)
+    Inventory.add(user)
     return authenticate(user)

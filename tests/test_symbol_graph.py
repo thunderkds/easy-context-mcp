@@ -103,7 +103,20 @@ def test_ambiguous_builtin_and_recursive_calls_make_no_edge(repo, home):
     assert not any(s == "dup" for _, _, s in got)  # dup_a.py and dup_b.py: two candidates
     assert not any(s == "run" for e, _, s in got if e == "calls")  # recursion
     assert {s for e, _, s in got if e == "calls"} == {
-        "helper", "authenticate", "shared_util", "normalize"}  # `print` makes no edge
+        "helper", "authenticate", "shared_util", "normalize", "Inventory.add", "check"}
+    # `print` (builtin) and `out.append(...)` (a unique project function `append` exists in
+    # stock.py, but `out` names neither a class nor an imported file) make no edge
+
+
+def test_receiver_calls_resolve_only_through_a_class_or_an_imported_module(repo, home):
+    _, p = repo
+    got = neighbours(home, p, "app.py", "run")
+    assert ("calls", "stock.py", "Inventory.add") in got  # Klass.method()
+    assert ("calls", "auth.py", "check") in got  # import auth; auth.check()
+    assert not any(s == "append" for _, _, s in got)
+    # instance receiver `s.load()`: type unknown, no edge
+    assert not any(e == "calls" and s == "Shipper.load"
+                   for e, _, s in neighbours(home, p, "jvm/Shipper.java", "Dispatcher.dispatch"))
 
 
 # --- AC4: called_by is the reverse of calls ---------------------------------------------------------
@@ -224,7 +237,7 @@ PAIRS = [
     (("auth.py", "authenticate"), ("auth.py", "normalize")),
     (("app.py", "Service.start"), ("app.py", "Service.stop")),
     (("web/repo.ts", "checkout"), ("web/fmt.ts", "formatTotal")),
-    (("jvm/Shipper.java", "Dispatcher.dispatch"), ("jvm/Shipper.java", "Shipper.ship")),
+    (("jvm/Shipper.java", "Dispatcher.dispatch"), ("jvm/Shipper.java", "Shipper.create")),
 ]
 
 

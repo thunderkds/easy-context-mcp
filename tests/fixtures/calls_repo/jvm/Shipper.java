@@ -10,10 +10,15 @@ public class Shipper extends Carrier implements Trackable {
     }
 
     public void load() {}
+
+    public static Shipper create() {
+        return new Shipper();
+    }
 }
 
 class Dispatcher {
     void dispatch(Shipper s) {
-        s.ship();
+        Shipper.create();
+        s.load();
     }
 }

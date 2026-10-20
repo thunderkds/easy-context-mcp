@@ -5,3 +5,7 @@ def normalize(u):
 
 def authenticate(user):
     return normalize(user)
+
+
+def check(user):
+    return True
