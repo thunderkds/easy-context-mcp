@@ -9,9 +9,9 @@
 ## Board
 
 ### Todo
-- [ ] **HUN-15** — Docs + end-to-end: README install, limits, SECURITY.md, LICENSE, Easy Kit policy | QA-Automation-Agent | C1 | Risk: Low | P1 | @hungnh1110 | Guide: `tasks/TASK_GUIDE_HUN-15.md`
 
 ### In Progress
+- [ ] **HUN-15** — Docs + end-to-end: README install, limits, SECURITY.md, LICENSE, Easy Kit policy | QA-Automation-Agent | C1 | Risk: Low | P1 | @hungnh1110 | Guide: `tasks/TASK_GUIDE_HUN-15.md`
 
 ### Ready for Review
 
