@@ -28,3 +28,7 @@ Claude Code 2.1.304 expands `${PWD}` in `.mcp.json` headers to the launch direct
 - `lane_check.py` reads only the first path of a Files-table cell — put one path per row in TASK_GUIDE Files tables.
 **Files**: .claude/hooks/.state/active_task, scripts/lane_check.py, tasks/TASK_GUIDE_HUN-7.md
 
+
+### 2026-10-20 — Linear status does not follow git here
+`.claude/board.json` has `git_auto_status: true`, but Linear's GitHub integration is not connected to `thunderkds/easy-context-mcp` (issues show no attachments after push/merge). `board_sync.py push status` refuses In Progress/Done while that flag is on, so the Supervisor set HUN-5/HUN-6 Done via the Linear API `issueUpdate(stateId)`. Fix: connect the integration, or set `git_auto_status: false`.
+**Files**: .claude/board.json, PROJECT_KANBAN.md

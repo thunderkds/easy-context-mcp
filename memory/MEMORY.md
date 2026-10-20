@@ -30,3 +30,4 @@
 - [${PWD} header expansion](learnings.md) — Claude Code expands to launch dir; one .mcp.json serves all worktrees.
 - [easy-verifier gotchas](learnings.md) — harness-lock.json false-positive security hits; change_risk abstains >200 KB diff; task scope abstains for HUN IDs.
 - [Review tooling gotchas](learnings.md) — built-in security-review needs `origin`; shared active_task races; one path per Files-table row.
+- [Linear status does not follow git](learnings.md) — GitHub integration not connected; git_auto_status blocks push status; set Done via API.
