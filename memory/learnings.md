@@ -99,6 +99,10 @@ HUN-10/12/13 were built when the index used additive ALTERs at v1; the peer sess
 ### 2026-10-20 — Docs facts and open compose defects (HUN-15)
 - README product guide lives after §16 (`# Product guide`); `tests/test_docs.py` derives every `EASY_CONTEXT_*` name from `src/` and `compose.yaml` and fails if README lacks one — document any new env var in the same task.
 - Measured cold index (real model, 2 threads, i7-1165G7): this repo 293 files 98 s; easy-verifier-mcp 472 files 392 s; no-change re-run 0.27 s.
-- Open defects (no task yet): compose.yaml passes only WORKSPACE/HOME/THREADS/PORT into the container (REFRESH_SECONDS, MAX_*, CHUNK_*, EMBED_* need `environment:` edits); its comments use `UID=$(id -u) docker compose` (bash: UID readonly; README uses `export UID GID="$(id -g)"`) and a double-quoted `${PWD}` header (expands at registration; README uses single quotes).
+- RESOLVED by HUN-19 (25af407): every EASY_CONTEXT_* setting is passed via the shared `&common-env` as `NAME: ${NAME:-}`, guarded by tests/test_compose.py; comments fixed. Was: compose.yaml passed only WORKSPACE/HOME/THREADS/PORT into the container (REFRESH_SECONDS, MAX_*, CHUNK_*, EMBED_* need `environment:` edits); its comments use `UID=$(id -u) docker compose` (bash: UID readonly; README uses `export UID GID="$(id -g)"`) and a double-quoted `${PWD}` header (expands at registration; README uses single quotes).
 - A QA run of `claude mcp add --scope local` in a scratch repo leaves an empty project entry in `~/.claude-personal/.claude.json`; harmless.
 **Files**: README.md, tests/test_docs.py, compose.yaml
+
+### 2026-10-20 — Compose workspace cannot be /tmp (HUN-19)
+`EASY_CONTEXT_WORKSPACE=/tmp docker compose config` fails: `target /tmp already mounted as services.service.tmpfs[0]` (the workspace is mounted at its identical path, and the container has a /tmp tmpfs). Use another path (e.g. /var/tmp) in checks; real workspaces are never /tmp. Exporting EASY_CONTEXT_WORKSPACE in the shell also breaks 23 unrelated tests — keep it unset when running pytest.
+**Files**: compose.yaml
