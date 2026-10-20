@@ -14,16 +14,16 @@
 
 | Check | Result | Notes / output snippet |
 |-------|--------|------------------------|
-| **New test(s) cover Acceptance Criteria (file paths pasted)** | ☐ pass / ☐ fail | [test file path(s) — required before Done] |
-| Verification command run | ☐ pass / ☐ fail | [paste actual output] |
-| Negative cases hold | ☐ pass / ☐ fail | |
-| verify | ☐ pass / ☐ fail / ☐ N/A | [what was observed — must literally state "pass" or "fail" here too, e.g. "skill run, feature confirmed working — pass": the merge gate scans this Notes column for the word "pass", not just the Result column] |
-| Review scope bounded to the change's blast radius (affected set, not whole repo) | ☐ pass / ☐ fail | [what was reviewed vs. skipped, and why] |
-| Full smoke suite still green (no regression) | ☐ pass / ☐ fail | |
-| easy-verifier confidence (advisory, PROJECT_SPEC Stage 4 Add-on) | overall: — · change_risk: — | [filled by Supervisor] |
-| **UI: Visual regression (diff or verdict pasted)** | ☐ pass / ☐ fail / ☐ N/A | [screenshot path or LLM verdict — required for UI tasks, Hard-Stop Gate 6] |
-| **UI: Design-system compliance (tokens/colors/typography verified)** | ☐ pass / ☐ fail / ☐ N/A | [method used + output] |
-| **UI: Responsiveness at target viewports** | ☐ pass / ☐ fail / ☐ N/A | [viewports tested, any overflow findings] |
+| **New test(s) cover Acceptance Criteria (file paths pasted)** | ☑ pass | tests/test_refresh.py (15 tests): AC1 edit picked up without index_path, AC2 unchanged refresh reads/embeds nothing, AC3 0 disables + stdio never starts, AC4 active project skipped, AC5 orphan deleted after root_exists false, AC6 real git worktree embeds only changed chunks, AC7 unreferenced cache rows GC'd; safety cases (missing parent, unmounted workspace, held lock, no root meta) |
+| Verification command run | ☑ pass | 2026-10-20T11:00:59Z `uv run pytest -q` → 358 passed, 6 warnings in 31.15s; `uv run ruff check src tests` → All checks passed! (Supervisor re-run) |
+| Negative cases hold | ☑ pass | empty/unmounted workspace → nothing deleted; held write.lock → not deleted; index without root meta → skipped |
+| verify | ☑ pass | Supervisor live HTTP run 2026-10-20T11:02:07Z (real FastEmbed model, EASY_CONTEXT_REFRESH_SECONDS=2): index_path queued → search 'zebra' returns old text; a.py edited at 11:02:13 with no index_path call; 8 s later search 'quokka' returns 'new quokka text'; list_indexes status done, root_exists true; repo folder deleted at 11:02:21 → 6 s later 0 indexes remain under the home dir. — pass |
+| Review scope bounded to the change's blast radius (affected set, not whole repo) | ☑ pass | jobs.py, server.py, store.py (read_root, referenced_hashes), embedding.py (gc), config.py, tests/test_refresh.py |
+| Full smoke suite still green (no regression) | ☑ pass | 358 passed incl. all earlier suites |
+| easy-verifier confidence (advisory, PROJECT_SPEC Stage 4 Add-on) | overall: 57 · change_risk: 100 | overall 57 (rated: architecture 100, requirement-fidelity 67, code-quality 67, security 18, test-strategy 75, blast-radius 30, reliability 39; 6 of 13 abstained) · change_risk: 100. Security low marks are the known framework harness-lock.json false positives. Report: reports/easy-verifier_HUN-14_20261020T180258.html |
+| **UI: Visual regression (diff or verdict pasted)** | ☐ N/A | pure backend task, no UI |
+| **UI: Design-system compliance (tokens/colors/typography verified)** | ☐ N/A | pure backend task, no UI |
+| **UI: Responsiveness at target viewports** | ☐ N/A | pure backend task, no UI |
 
 ---
 
@@ -57,7 +57,6 @@ The edited file is not re-indexed: search still returns the OLD text (zebra) and
 2026-10-20T11:00:25Z worktree index: chunks_embedded=1 chunks_cached=1
 ```
 
-**DELTA**: [one sentence — what a user can now do that they could not before]
+**DELTA**: Indexed repos stay current by themselves in service mode, indexes of deleted repos or worktrees clean themselves up, and a new worktree costs only its changed chunks.
 
-**WITNESS**: [who ran it and when — derived from `memory/event-trace/Txxx.jsonl`, never the
-implementing agent alone]
+**WITNESS**: Supervisor (claude-opus-5-5): test re-run 2026-10-20T11:00:59Z, live HTTP check 11:02:07Z; trace memory/event-trace/HUN-14.jsonl.
