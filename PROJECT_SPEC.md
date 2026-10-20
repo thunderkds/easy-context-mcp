@@ -122,8 +122,8 @@ Every task gets an independent, no-LLM confidence score from the Easy family ver
 
 | ID | Title | Status | Assigned Agent | Complexity | Risk | Priority |
 |----|-------|--------|---------------|-----------|------|----------|
-| HUN-5 | Spikes: offline FastEmbed load, flock+WAL across container/host, ${PWD} in .mcp.json headers | Todo | Common-Infrastructure-Agent | C1 | Low | P0 |
-| HUN-6 | Skeleton: package, stdio + streamable-HTTP server, project binding, empty list_indexes | Todo | Backend-Implementer | C2 | High | P0 |
+| HUN-5 | Spikes: offline FastEmbed load, flock+WAL across container/host, ${PWD} in .mcp.json headers | Done | Common-Infrastructure-Agent | C1 | Low | P0 |
+| HUN-6 | Skeleton: package, stdio + streamable-HTTP server, project binding, empty list_indexes | Done | Backend-Implementer | C2 | High | P0 |
 | HUN-7 | First full path: index_path → search_semantic → get_slice with caps | Todo | Backend-Implementer | C3 | High | P0 |
 | HUN-8 | File hygiene: binaries, secrets, size, nested .git, hash skip, deletions | Todo | Backend-Implementer | C2 | High | P0 |
 | HUN-9 | Markdown heading chunks, stable slice ids, non-UTF-8 files | Todo | Backend-Implementer | C1 | Low | P1 |
