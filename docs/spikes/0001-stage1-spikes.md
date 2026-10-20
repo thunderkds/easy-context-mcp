@@ -95,3 +95,11 @@ Cleanup: throwaway repo/worktree `_spike3-*` and the echo server were removed. N
 
 ## Cut list
 Embedding speed benchmarks (HUN-15). Ruff is not applied to `experiments/spikes/` (throwaway; no `pyproject.toml` exists yet).
+
+## Supervisor decision (Stage 4, 2026-10-20)
+
+Spike 3 finding 2 is superseded: the server does **not** accept a launch subdirectory as the root
+as-is. Binding walks up from the given directory to the nearest ancestor holding a `.git` file or
+directory (repo or worktree root), and keeps the directory only if none exists. Implemented in
+HUN-6 (`binding._git_root`). A ceiling (workspace root in service mode; never `$HOME` or above
+unless given exactly) is assigned to HUN-7 / HUN-13.
