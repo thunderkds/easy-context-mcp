@@ -14,15 +14,17 @@
 
 | Check | Result | Notes / output snippet |
 |-------|--------|------------------------|
-| **New test(s) cover Acceptance Criteria (file paths pasted)** | ☐ pass / ☐ fail | [test file path(s) — required before Done] |
-| Verification command run | ☐ pass / ☐ fail | [paste actual output] |
-| Negative cases hold | ☐ pass / ☐ fail | |
-| verify | ☐ pass / ☐ fail / ☐ N/A | [what was observed — must literally state "pass" or "fail" here too, e.g. "skill run, feature confirmed working — pass": the merge gate scans this Notes column for the word "pass", not just the Result column] |
-| Review scope bounded to the change's blast radius (affected set, not whole repo) | ☐ pass / ☐ fail | [what was reviewed vs. skipped, and why] |
-| Full smoke suite still green (no regression) | ☐ pass / ☐ fail | |
-| **UI: Visual regression (diff or verdict pasted)** | ☐ pass / ☐ fail / ☐ N/A | [screenshot path or LLM verdict — required for UI tasks, Hard-Stop Gate 6] |
-| **UI: Design-system compliance (tokens/colors/typography verified)** | ☐ pass / ☐ fail / ☐ N/A | [method used + output] |
-| **UI: Responsiveness at target viewports** | ☐ pass / ☐ fail / ☐ N/A | [viewports tested, any overflow findings] |
+| **New test(s) cover Acceptance Criteria (file paths pasted)** | ☑ pass | tests/test_docs.py (new, 10 tests): every EASY_CONTEXT_* name in src/ and compose.yaml documented in README (negative check: renaming CHUNK_OVERLAP in README made it fail), README sections present, §10 policy wording verbatim, SECURITY.md topics, LICENSE MIT, examples parse, REFRESH_SECONDS + root_exists documented (AC1, AC3, AC4, AC5) |
+| Verification command run | ☑ pass | 2026-10-20T11:18:47Z (Supervisor re-run at 6930dbe) `FASTEMBED_CACHE_PATH=/tmp/spike1/cache uv run pytest -q` → 353 passed, 6 warnings in 29.52s; `uv run ruff check src tests` → All checks passed!; tests/test_docs.py against a main (HUN-14 merged) tree with the branch docs → 10 passed |
+| Negative cases hold | ☑ pass | undocumented env var → test fails (agent negative check); README §1–16 text unchanged (only the final newline; separator blank line added 6930dbe so §16's last line is not a setext heading); docker compose down run only on the agent's own compose project — easy-verifier/easy-ui containers untouched |
+| verify | ☑ pass | HITL AC6 by the user 2026-10-20 15:02Z, Docker service + Claude Code: index_path done (509 files, 3680 slices, no errors), search_semantic 'project binding' top 5, get_slice on the top hit, get_related → parent + 2 same_file neighbours — pass. Run in the kitchd repo (not this one), which also proves per-repo `${PWD}` header binding. Agent ran every documented command verbatim in scratch dirs (uv sync, claude mcp add stdio + http, docker compose config/up/down on its own project, smoke_docker.sh ALL SMOKE CHECKS PASSED) — pass |
+| Review scope bounded to the change's blast radius (affected set, not whole repo) | ☑ pass | README.md (appended part), SECURITY.md, LICENSE line, examples/, tests/test_docs.py; no src/ change |
+| Full smoke suite still green (no regression) | ☑ pass | 353 passed on the branch; main after HUN-14 has 358, merge result re-run before Done |
+| Code review (Stage 4) | ☑ pass | P2 README separator rendered §16's last line as a heading — fixed 6930dbe; P1 process: agent read only the frontmatter of agents/qa.md — read in full on request, no conflict. Defects found outside scope (follow-up task proposed): compose.yaml passes only 4 EASY_CONTEXT_* vars into the container; its comments use `UID=$(id -u)` (readonly in bash) and a double-quoted `${PWD}` header. Timings recorded: this repo 293 files 98.08 s (2.99 files/s), easy-verifier-mcp 472 files 391.74 s (1.20 files/s), i7-1165G7 8 threads |
+| easy-verifier confidence (advisory, PROJECT_SPEC Stage 4 Add-on) | overall: 74 · change_risk: abstained | overall 74 (rated: blast-radius 100, requirement-fidelity 67, security 30, test-strategy 100; 9 of 13 abstained — docs change). change_kind chore. security 30 = known false positives. Report: reports/easy-verifier_HUN-15_20261020T220432.html |
+| **UI: Visual regression (diff or verdict pasted)** | ☐ N/A | docs task, no UI |
+| **UI: Design-system compliance (tokens/colors/typography verified)** | ☐ N/A | docs task, no UI |
+| **UI: Responsiveness at target viewports** | ☐ N/A | docs task, no UI |
 
 ---
 
@@ -70,5 +72,4 @@ ls: cannot access 'examples/': No such file or directory
 
 **DELTA**: A new user can install either mode, register the server for any repo or worktree, and paste the Easy Kit policy from the README alone; limits, security policy and measured timings are stated.
 
-**WITNESS**: [who ran it and when — derived from `memory/event-trace/Txxx.jsonl`, never the
-implementing agent alone]
+**WITNESS**: the user (HITL, Claude Code + Docker service, 2026-10-20 15:02Z) and the Supervisor (suite re-run 11:18:47Z, docs test against main) independently of the implementing agent; trace `memory/event-trace/HUN-15.jsonl`.
