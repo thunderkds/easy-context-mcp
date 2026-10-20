@@ -1,0 +1,255 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>code-review Report — hun-8-hygiene</title>
+<style>
+  :root {
+    --bg:        #0a0a12;
+    --surface:   #111128;
+    --surface2:  #16162e;
+    --border:    #1e1e42;
+    --border-glow: #2a2a6e;
+    --text:      #e2e2f0;
+    --muted:     #6b6b9a;
+    --cyan:      #00d4ff;
+    --green:     #00ff88;
+    --amber:     #ffb800;
+    --red:       #ff3b6b;
+    --purple:    #a855f7;
+    --cyan-dim:  rgba(0,212,255,.12);
+    --green-dim: rgba(0,255,136,.12);
+    --red-dim:   rgba(255,59,107,.12);
+    --amber-dim: rgba(255,184,0,.12);
+  }
+
+  * { box-sizing: border-box; }
+  body {
+    font-family: 'Segoe UI', system-ui, sans-serif;
+    max-width: 900px;
+    margin: 2rem auto;
+    padding: 0 1rem;
+    color: var(--text);
+    background: var(--bg);
+    line-height: 1.5;
+  }
+  h1 { margin: 0; font-size: 1.25rem; color: #fff; letter-spacing: .02em; }
+  h2 { font-size: .85rem; color: var(--muted); margin: 0 0 .75rem; font-weight: 600; text-transform: uppercase; letter-spacing: .08em; }
+
+  /* ── HEADER ── */
+  .header {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-top: 2px solid var(--cyan);
+    border-radius: 10px;
+    padding: 1.5rem;
+    margin-bottom: 1.5rem;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    box-shadow: 0 0 24px rgba(0,212,255,.08), 0 4px 24px rgba(0,0,0,.5);
+  }
+  .header-meta { color: var(--muted); font-size: .85rem; margin-top: .3rem; }
+  .header-meta code { color: var(--cyan); background: var(--cyan-dim); padding: .1rem .4rem; border-radius: 4px; font-size: .8rem; }
+
+  /* ── OVERALL BADGE ── */
+  .badge { display: inline-block; padding: .3rem .9rem; border-radius: 999px; font-weight: 700; font-size: .8rem; letter-spacing: .05em; text-transform: uppercase; }
+  .badge-green  { background: var(--green-dim); color: var(--green); border: 1px solid rgba(0,255,136,.3); box-shadow: 0 0 8px rgba(0,255,136,.2); }
+  .badge-yellow { background: var(--amber-dim); color: var(--amber); border: 1px solid rgba(255,184,0,.3); box-shadow: 0 0 8px rgba(255,184,0,.2); }
+  .badge-red    { background: var(--red-dim);   color: var(--red);   border: 1px solid rgba(255,59,107,.3); box-shadow: 0 0 8px rgba(255,59,107,.2); }
+
+  /* ── SEVERITY BADGES ── */
+  .sev { display: inline-block; padding: .15rem .55rem; border-radius: 999px; font-weight: 700; font-size: .75rem; white-space: nowrap; letter-spacing: .04em; }
+  .sev-high { background: var(--red-dim);   color: var(--red);   border: 1px solid rgba(255,59,107,.25); }
+  .sev-med  { background: var(--amber-dim); color: var(--amber); border: 1px solid rgba(255,184,0,.25); }
+  .sev-low  { background: var(--cyan-dim);  color: var(--cyan);  border: 1px solid rgba(0,212,255,.25); }
+  .sev-info { background: rgba(168,85,247,.1); color: var(--purple); border: 1px solid rgba(168,85,247,.25); }
+
+  /* ── GAUGE CARDS ── */
+  .gauges { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1rem; margin-bottom: 1.5rem; }
+  .gauge-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 1.25rem;
+    transition: border-color .2s;
+  }
+  .gauge-card:hover { border-color: var(--border-glow); }
+  .gauge-label { font-size: .7rem; font-weight: 700; letter-spacing: .1em; color: var(--muted); text-transform: uppercase; margin-bottom: .5rem; }
+  .gauge-value { font-size: 2rem; font-weight: 700; margin-bottom: .6rem; font-variant-numeric: tabular-nums; }
+  .gauge-value-risk    { color: var(--red); text-shadow: 0 0 12px rgba(255,59,107,.5); }
+  .gauge-value-quality { color: var(--green); text-shadow: 0 0 12px rgba(0,255,136,.5); }
+  .gauge-value-effort  { color: var(--amber); text-shadow: 0 0 12px rgba(255,184,0,.5); }
+  .bar-bg   { background: var(--border); border-radius: 999px; height: 6px; overflow: hidden; }
+  .bar-fill { height: 6px; border-radius: 999px; }
+  .bar-risk    { background: linear-gradient(90deg, #ff3b6b, #ff006e); box-shadow: 0 0 8px rgba(255,59,107,.6); }
+  .bar-quality { background: linear-gradient(90deg, #00c96e, #00ff88); box-shadow: 0 0 8px rgba(0,255,136,.6); }
+  .bar-effort  { background: linear-gradient(90deg, #e0a000, #ffb800); box-shadow: 0 0 8px rgba(255,184,0,.6); }
+
+  /* ── SECTION CARD ── */
+  .section {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    overflow: hidden;
+    margin-bottom: 1.5rem;
+    box-shadow: 0 2px 16px rgba(0,0,0,.4);
+  }
+  .section-head {
+    padding: .7rem 1.25rem;
+    background: var(--surface2);
+    border-bottom: 1px solid var(--border);
+  }
+
+  /* ── TABLE ── */
+  table { width: 100%; border-collapse: collapse; }
+  th {
+    text-align: left;
+    padding: .6rem 1.25rem;
+    font-size: .72rem;
+    font-weight: 700;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: .07em;
+    background: var(--surface2);
+    border-bottom: 1px solid var(--border);
+  }
+  td {
+    padding: .8rem 1.25rem;
+    font-size: .875rem;
+    border-top: 1px solid var(--border);
+    vertical-align: top;
+    color: var(--text);
+  }
+  tr:hover td { background: rgba(255,255,255,.02); }
+  td pre {
+    margin: 0;
+    font-family: 'Cascadia Code', 'Fira Code', monospace;
+    font-size: .78rem;
+    background: #0d0d1f;
+    border: 1px solid var(--border);
+    border-left: 3px solid var(--cyan);
+    border-radius: 4px;
+    padding: .5rem .75rem;
+    white-space: pre-wrap;
+    word-break: break-word;
+    color: #b0c4ff;
+    line-height: 1.6;
+  }
+  td code {
+    font-family: 'Cascadia Code', 'Fira Code', monospace;
+    background: var(--cyan-dim);
+    color: var(--cyan);
+    padding: .1rem .4rem;
+    border-radius: 3px;
+    font-size: .78rem;
+  }
+
+  /* ── PROSE ── */
+  .prose {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 1.5rem;
+    line-height: 1.8;
+    margin-bottom: 1.5rem;
+    font-size: .9rem;
+    color: #c0c0e0;
+    box-shadow: 0 2px 16px rgba(0,0,0,.4);
+  }
+
+  /* ── FOOTER ── */
+  .footer {
+    font-size: .72rem;
+    color: var(--muted);
+    text-align: center;
+    padding-bottom: 2rem;
+    border-top: 1px solid var(--border);
+    padding-top: 1rem;
+    margin-top: .5rem;
+  }
+  .footer code { color: var(--purple); background: rgba(168,85,247,.1); padding: .1rem .4rem; border-radius: 3px; }
+</style>
+</head>
+<body>
+
+<!-- ═══ HEADER ═══════════════════════════════════════════════════════════ -->
+<div class="header">
+  <div>
+    <h1>code-review</h1>
+    <div class="header-meta">
+      Branch: <code>hun-8-hygiene</code> &nbsp;·&nbsp; 2026-10-20
+    </div>
+  </div>
+  <span class="badge badge-green">Healthy</span>
+</div>
+
+<!-- ═══ DIMENSION GAUGES ═════════════════════════════════════════════════ -->
+<!--
+  OVERALL_CLASS  : green | yellow | red
+  OVERALL_LABEL  : e.g. "Healthy" | "Needs Attention" | "Critical"
+  RISK_SCORE     : integer 0–100 (higher = more risk)
+  QUALITY_SCORE  : integer 0–100 (higher = better quality)
+  EFFORT_SCORE   : integer 0–100 (higher = more adaptation work needed)
+-->
+<div class="gauges">
+  <div class="gauge-card">
+    <div class="gauge-label">Risk</div>
+    <div class="gauge-value gauge-value-risk">12%</div>
+    <div class="bar-bg"><div class="bar-fill bar-risk" style="width:12%"></div></div>
+  </div>
+  <div class="gauge-card">
+    <div class="gauge-label">Code Quality</div>
+    <div class="gauge-value gauge-value-quality">88%</div>
+    <div class="bar-bg"><div class="bar-fill bar-quality" style="width:88%"></div></div>
+  </div>
+  <div class="gauge-card">
+    <div class="gauge-label">Adaptation Effort</div>
+    <div class="gauge-value gauge-value-effort">20%</div>
+    <div class="bar-bg"><div class="bar-fill bar-effort" style="width:20%"></div></div>
+  </div>
+</div>
+
+<!-- ═══ FINDINGS TABLE ═══════════════════════════════════════════════════ -->
+
+<div class="section">
+  <div class="section-head"><h2>Findings</h2></div>
+  <table>
+    <thead>
+      <tr>
+        <th style="width:90px">Severity</th>
+        <th style="width:200px">File</th>
+        <th style="width:80px">Lines</th>
+        <th>Finding</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr><td><span class="sev sev-med">Med</span></td><td><code>src/easy_context_mcp/discovery.py</code></td><td>41-44</td><td><pre>Security (fixed in a9ef16f): secret basenames missed common credential files (credentials, .netrc, _netrc, .pgpass, .npmrc, .pypirc, .git-credentials, .htpasswd, *.jks, *.keystore, *.kdbx, *.ppk). Added with a parametrized test.</pre></td></tr>
+<tr><td><span class="sev sev-med">Med</span></td><td><code>src/easy_context_mcp/discovery.py</code></td><td>read_file</td><td><pre>Security (fixed in a9ef16f): read_file read the whole file although the size check used an earlier lstat; a file grown after discovery was read unbounded. Now reads at most max_bytes+1 and counts it too_large.</pre></td></tr>
+<tr><td><span class="sev sev-low">Low</span></td><td><code>src/easy_context_mcp/tools.py</code></td><td>_visit</td><td><pre>P3: a file with a null byte but an unknown extension is re-read (up to the size cap) on every run because rejected files are not stored. Accepted cut.</pre></td></tr>
+<tr><td><span class="sev sev-low">Low</span></td><td><code>src/easy_context_mcp/tools.py</code></td><td>_visit</td><td><pre>P3: a same-size edit with mtime restored is missed without force=true (documented trade-off of the size+mtime fast path).</pre></td></tr>
+<tr><td><span class="sev sev-info">Info</span></td><td><code>tests/test_hygiene.py</code></td><td>—</td><td><pre>Process: the follow-up tests were written together with the code, not red-first (agent self-reported).</pre></td></tr>
+<tr><td><span class="sev sev-info">Info</span></td><td><code>—</code></td><td>—</td><td><pre>migration-safety GO: additive nullable ALTER TABLE files ADD COLUMN size INTEGER / mtime_ns INTEGER, guarded by PRAGMA table_info, user_version stays 1. Dry run on a copy of a real HUN-7 index (184 files / 528 slices): up 0.078 s, rows kept, integrity ok; second up idempotent (0.010 s); HUN-7 code writes+reads the upgraded index; down = DROP COLUMN x2 → ok; up again ok. NULL size/mtime rows are hashed once, then touched (no re-embed).</pre></td></tr>
+<tr><td><span class="sev sev-info">Info</span></td><td><code>—</code></td><td>—</td><td><pre>easy-verifier: overall 64 (rated: architecture 100, requirement-fidelity 67, code-quality 87, security 18, test-strategy 60, blast-radius 50, reliability 64; 6 of 13 abstained) · change_risk: 0 (feature rule new_code_without_test_share pairs tests by file name, test_<module>.py; this repo names tests by feature — test_hygiene.py covers discovery/store/tools, so 0 is a naming artefact, not missing tests). Security 18 = false positives (sha256 values in framework .claude/harness-lock.json; SQL f-strings interpolating constants/'?' placeholders). public_symbols_removed 1 = read_file gained a required max_bytes argument (internal API, all callers updated). Report: reports/easy-verifier_HUN-8_20261020T153650.html</pre></td></tr>
+    </tbody>
+  </table>
+</div>
+
+<!-- ═══ SUMMARY PROSE ════════════════════════════════════════════════════ -->
+
+<div class="prose">
+  HUN-8 adds file hygiene: secret basenames, binary extensions + null-byte sniff, size cap (read capped too), nested repos/worktrees skipped; size+mtime fast path then hash; force=true re-processes; deleted / newly ignored / newly rejected files are removed; skip counts by reason in the response. Two security items found in review were fixed before merge. 121/121 tests pass (Supervisor re-run); live demo indexes only app.py of a repo full of secrets/binaries/nested repo, second run embeds 0, delete removes 1. migration-safety GO: additive nullable ALTER TABLE files ADD COLUMN size INTEGER / mtime_ns INTEGER, guarded by PRAGMA table_info, user_version stays 1. Dry run on a copy of a real HUN-7 index (184 files / 528 slices): up 0.078 s, rows kept, integrity ok; second up idempotent (0.010 s); HUN-7 code writes+reads the upgraded index; down = DROP COLUMN x2 → ok; up again ok. NULL size/mtime rows are hashed once, then touched (no re-embed). easy-verifier confidence: overall 64 (rated: architecture 100, requirement-fidelity 67, code-quality 87, security 18, test-strategy 60, blast-radius 50, reliability 64; 6 of 13 abstained) · change_risk: 0 (feature rule new_code_without_test_share pairs tests by file name, test_<module>.py; this repo names tests by feature — test_hygiene.py covers discovery/store/tools, so 0 is a naming artefact, not missing tests). Security 18 = false positives (sha256 values in framework .claude/harness-lock.json; SQL f-strings interpolating constants/'?' placeholders). public_symbols_removed 1 = read_file gained a required max_bytes argument (internal API, all callers updated). Report: reports/easy-verifier_HUN-8_20261020T153650.html
+</div>
+
+<!-- ═══ FOOTER ═══════════════════════════════════════════════════════════ -->
+<!--
+  MODEL     : e.g. claude-sonnet-4-6
+  TASK_ID   : e.g. T001 (or "—" if not task-scoped)
+  TIMESTAMP : ISO-8601, e.g. 2026-06-18T14:30:22
+-->
+<div class="footer">
+  Model: <code>claude-opus-5-5 (Supervisor)</code> &nbsp;·&nbsp; Task: HUN-8 &nbsp;·&nbsp; Generated: 2026-10-20T15:36:50
+</div>
+
+</body>
+</html>

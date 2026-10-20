@@ -8,7 +8,14 @@ from typing import Any
 from . import config
 from .binding import Project
 from .chunking import chunk_file, slice_id
-from .discovery import iter_files, read_file, relative_inside, resolve_index_dir
+from .discovery import (
+    Entry,
+    has_null_byte,
+    iter_files,
+    read_file,
+    relative_inside,
+    resolve_index_dir,
+)
 from .embedding import Embedder, embed_cached, normalize
 from .store import ProjectStore, search_vectors
 
@@ -19,46 +26,104 @@ def _envelope(project: Project) -> dict[str, Any]:
     return {"project_id": project.project_id, "root": project.root}
 
 
+SKIP_REASONS = ("binary", "secret", "too_large", "nested_repo", "unreadable")
+
+
+class _Tally:
+    """What one `index_path` run did."""
+
+    def __init__(self) -> None:
+        self.skipped = dict.fromkeys(SKIP_REASONS, 0)
+        self.kept: set[str] = set()  # paths whose stored rows must survive the removal step
+        self.unchanged = self.embedded_files = 0
+        self.slices = self.processed_slices = self.embedded = 0
+
+
+def _visit(
+    store: ProjectStore, project: Project, embedder: Embedder, entry: Entry,
+    old: tuple | None, force: bool, tally: _Tally,
+) -> None:
+    """Index, skip or count one discovered file. `old` is its stored (sha, size, mtime, slices)."""
+    rel = entry.path
+    max_bytes = config.max_file_bytes()
+    if entry.reason:
+        tally.skipped[entry.reason] += 1
+        return
+    if not force and old and old[1:3] == (entry.size, entry.mtime_ns):
+        tally.kept.add(rel)
+        tally.unchanged += 1
+        tally.slices += old[3]
+        return
+    try:
+        data = read_file(project.root, rel, max_bytes)
+    except OSError:  # vanished, unreadable, or swapped for a symlink since discovery
+        tally.skipped["unreadable"] += 1
+        tally.kept.add(rel)  # a transient read error must not drop the file's old slices
+        tally.slices += old[3] if old else 0
+        return
+    if len(data) > max_bytes:  # grew since the size check
+        tally.skipped["too_large"] += 1
+        return
+    if has_null_byte(data):
+        tally.skipped["binary"] += 1
+        return
+    tally.kept.add(rel)
+    sha = hashlib.sha256(data).hexdigest()
+    if not force and old and old[0] == sha:
+        store.touch_file(rel, entry.size, entry.mtime_ns)
+        tally.unchanged += 1
+        tally.slices += old[3]
+        return
+    windows = chunk_file(
+        rel, data.decode("utf-8", errors="replace"), config.chunk_lines(), config.chunk_overlap()
+    )
+    vectors, hashes, n_new = embed_cached(
+        [w[2] for w in windows], embedder, config.embed_cache_file()
+    )
+    rows = [
+        (slice_id(rel, s, e), s, e, text, h, v.tobytes(), hp, hl)
+        for (s, e, text, hp, hl), h, v in zip(windows, hashes, vectors)
+    ]
+    store.replace_file(rel, sha, entry.size, entry.mtime_ns, embedder.model_id, rows)
+    tally.embedded_files += 1
+    tally.slices += len(rows)
+    tally.processed_slices += len(rows)
+    tally.embedded += n_new
+
+
 def index_path(
     project: Project, path: str = ".", force: bool = False, *, embedder: Embedder
 ) -> dict[str, Any]:
     """Synchronously walk, chunk, embed and store `path` (a directory inside the root).
 
-    `force` is accepted for the PRD signature; every run re-indexes all walked files until
-    hash skip lands (HUN-8). One transaction per file, so readers see committed files only.
+    A file whose size and mtime match its stored row is skipped without being opened. A file
+    whose size or mtime moved is hashed; an equal hash only refreshes the stored size/mtime.
+    `force` re-processes every file. Stored files under `path` that were not kept this run
+    (deleted, newly ignored, now secret/binary/oversize) are removed. One transaction per file.
     """
     start = resolve_index_dir(project.root, path)
-    size, overlap = config.chunk_lines(), config.chunk_overlap()
-    files = slices = embedded = skipped = 0
+    config.chunk_overlap()  # validate chunk settings before touching the index
+    prefix = start + "/" if start else ""
+    tally = _Tally()
     with closing(ProjectStore.open_write(config.index_file(project.project_id))) as store:
         store.check_model(embedder.model_id)
-        for rel in iter_files(project.root, start):
-            try:
-                data = read_file(project.root, rel)
-            except OSError:  # vanished, unreadable, or swapped for a symlink since discovery
-                skipped += 1
-                continue
-            windows = chunk_file(rel, data.decode("utf-8", errors="replace"), size, overlap)
-            vectors, hashes, n_new = embed_cached(
-                [w[2] for w in windows], embedder, config.embed_cache_file()
-            )
-            rows = [
-                (slice_id(rel, s, e), s, e, text, h, v.tobytes(), hp, hl)
-                for (s, e, text, hp, hl), h, v in zip(windows, hashes, vectors)
-            ]
-            store.replace_file(rel, hashlib.sha256(data).hexdigest(), embedder.model_id, rows)
-            files += 1
-            slices += len(rows)
-            embedded += n_new
+        stored = store.file_states()
+        for entry in iter_files(project.root, start, config.max_file_bytes()):
+            _visit(store, project, embedder, entry, stored.get(entry.path), force, tally)
+        gone = [p for p in stored if p.startswith(prefix) and p not in tally.kept]
+        store.remove_files(gone)
     return {
         **_envelope(project),
         "status": "done",
         "path": start or ".",
-        "files": files,
-        "skipped": skipped,
-        "slices": slices,
-        "chunks_embedded": embedded,
-        "chunks_cached": slices - embedded,
+        "files": tally.embedded_files + tally.unchanged,
+        "files_embedded": tally.embedded_files,
+        "files_unchanged": tally.unchanged,
+        "files_removed": len(gone),
+        "skipped": tally.skipped,
+        "slices": tally.slices,
+        "chunks_embedded": tally.embedded,
+        "chunks_cached": tally.processed_slices - tally.embedded,
     }
 
 

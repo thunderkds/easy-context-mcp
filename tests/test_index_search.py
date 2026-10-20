@@ -364,7 +364,7 @@ def test_unreadable_file_skipped_not_fatal(tmp_path, home):
         res = tools.index_path(project(root), ".", embedder=FakeEmbedder())
     finally:
         secret.chmod(0o644)
-    assert res["status"] == "done" and res["skipped"] == 1
+    assert res["status"] == "done" and res["skipped"]["unreadable"] == 1
     assert res["files"] == len(FIXTURE_FILES)
 
 

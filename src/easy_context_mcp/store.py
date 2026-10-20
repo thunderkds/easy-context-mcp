@@ -13,7 +13,9 @@ CREATE TABLE IF NOT EXISTS meta (
 );
 CREATE TABLE IF NOT EXISTS files (
     path TEXT PRIMARY KEY,
-    sha256 TEXT NOT NULL
+    sha256 TEXT NOT NULL,
+    size INTEGER,
+    mtime_ns INTEGER
 );
 CREATE TABLE IF NOT EXISTS slices (
     id TEXT PRIMARY KEY,
@@ -28,6 +30,9 @@ CREATE TABLE IF NOT EXISTS slices (
 );
 CREATE INDEX IF NOT EXISTS slices_path ON slices(path);
 """
+
+# Columns added to `files` after the first HUN-7 release; added in place to older indexes.
+_FILES_COLUMNS_ADDED = (("size", "INTEGER"), ("mtime_ns", "INTEGER"))
 
 # Columns added after v1 shipped (HUN-9); open_write adds them to older v1 indexes.
 SLICE_COLUMNS_ADDED = (("heading_path", "TEXT"), ("heading_level", "INTEGER"))
@@ -54,6 +59,10 @@ class ProjectStore:
             con.close()
             raise ValueError(f"index {path} has schema v{version}; this server reads v1")
         con.executescript(SCHEMA)
+        have = {r[1] for r in con.execute("PRAGMA table_info(files)")}
+        for name, decl in _FILES_COLUMNS_ADDED:
+            if name not in have:
+                con.execute(f"ALTER TABLE files ADD COLUMN {name} {decl}")
         have = {r[1] for r in con.execute("PRAGMA table_info(slices)")}
         for name, kind in SLICE_COLUMNS_ADDED:
             if name not in have:
@@ -82,14 +91,31 @@ class ProjectStore:
                 f"with {model_id!r}; delete {self.path.parent} and index again"
             )
 
-    def replace_file(self, path: str, sha256: str, model_id: str, rows: list[SliceRow]) -> None:
+    def file_states(self) -> dict[str, tuple[str, int | None, int | None, int]]:
+        """path -> (sha256, size, mtime_ns, slice_count); size/mtime are None on older indexes."""
+        rows = self.con.execute(
+            "SELECT f.path, f.sha256, f.size, f.mtime_ns, "
+            "(SELECT count(*) FROM slices s WHERE s.path = f.path) FROM files f"
+        )
+        return {r[0]: r[1:] for r in rows}
+
+    def _bump_generation(self) -> None:
+        self.con.execute(
+            "INSERT INTO meta (key, value) VALUES ('generation', '1') "
+            "ON CONFLICT(key) DO UPDATE SET value = CAST(value AS INTEGER) + 1"
+        )
+
+    def replace_file(
+        self, path: str, sha256: str, size: int, mtime_ns: int, model_id: str, rows: list[SliceRow]
+    ) -> None:
         """Atomically replace one file's slices and bump the generation."""
         with self.con:
             self.con.execute("DELETE FROM slices WHERE path = ?", (path,))
             self.con.execute(
-                "INSERT INTO files (path, sha256) VALUES (?, ?) "
-                "ON CONFLICT(path) DO UPDATE SET sha256 = excluded.sha256",
-                (path, sha256),
+                "INSERT INTO files (path, sha256, size, mtime_ns) VALUES (?, ?, ?, ?) "
+                "ON CONFLICT(path) DO UPDATE SET sha256 = excluded.sha256, "
+                "size = excluded.size, mtime_ns = excluded.mtime_ns",
+                (path, sha256, size, mtime_ns),
             )
             self.con.executemany(
                 "INSERT INTO slices (id, path, start_line, end_line, text, chunk_hash, vector, "
@@ -101,10 +127,22 @@ class ProjectStore:
                 "ON CONFLICT(key) DO UPDATE SET value = excluded.value",
                 (model_id,),
             )
+            self._bump_generation()
+
+    def touch_file(self, path: str, size: int, mtime_ns: int) -> None:
+        """Record new size/mtime for a file whose content hash did not change."""
+        with self.con:
             self.con.execute(
-                "INSERT INTO meta (key, value) VALUES ('generation', '1') "
-                "ON CONFLICT(key) DO UPDATE SET value = CAST(value AS INTEGER) + 1"
+                "UPDATE files SET size = ?, mtime_ns = ? WHERE path = ?", (size, mtime_ns, path)
             )
+
+    def remove_files(self, paths: list[str]) -> None:
+        """Delete files and (by cascade) their slices in one transaction; bump the generation."""
+        if not paths:
+            return
+        with self.con:
+            self.con.executemany("DELETE FROM files WHERE path = ?", [(p,) for p in paths])
+            self._bump_generation()
 
     def get_slice(self, slice_id: str) -> tuple[str, str, int, int, str] | None:
         return self.con.execute(
