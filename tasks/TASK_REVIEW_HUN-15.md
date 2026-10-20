@@ -60,9 +60,15 @@ ls: cannot access 'SECURITY.md': No such file or directory
 ls: cannot access 'examples/': No such file or directory
 ```
 
-**AFTER**: [same command, post-change] OR [verbatim excerpt of the new content]
+**AFTER** (2026-10-20, branch `hun-15-docs`):
 
-**DELTA**: [one sentence — what a user can now do that they could not before]
+- `README.md`: unchanged through `## 16.`; appended `# Product guide` with `## Install` (stdio, Docker service, `### Using from another repo / worktrees`), `## Tools`, `## Configuration` (every `EASY_CONTEXT_*` variable with default), `## Timed refresh and cleanup (service mode)`, `## Measured indexing time`, `## Limitations`, `## Easy Kit policy`.
+- `SECURITY.md`, `examples/mcp.json`, `examples/mcp.stdio.json`, `tests/test_docs.py` added.
+- `LICENSE` (user decision, MIT unchanged):
+  - old: `Copyright (c) 2026 Hung Nguyenx`
+  - new: `Copyright (c) 2026 Hung Nguyen Huu`
+
+**DELTA**: A new user can install either mode, register the server for any repo or worktree, and paste the Easy Kit policy from the README alone; limits, security policy and measured timings are stated.
 
 **WITNESS**: [who ran it and when — derived from `memory/event-trace/Txxx.jsonl`, never the
 implementing agent alone]

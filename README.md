@@ -299,3 +299,193 @@ This plan describes an original system. It does **not** require, include, or red
 ---
 
 *End of plan. Single version. Full scope above is the product; build order is only the path to that product.*
+---
+
+# Product guide
+
+The sections above are the plan. The sections below describe the product as built. Where they differ, this part is correct.
+
+## Install
+
+easy-context-mcp runs in two modes from one code base. Both need a local clone. There is no PyPI package in this version.
+
+| | Stdio mode | Docker service mode |
+|---|---|---|
+| Process | One server per Claude Code session | One shared server for every repo on the machine |
+| Needs | Python 3.10+ and `uv` | Docker (Linux) |
+| Model | Downloaded on first use (about 87 MB) into `~/.easy-context/models` | Baked into the image |
+| Background refresh | None | Yes (see "Timed refresh") |
+| Binding | Working directory of the session | `X-Easy-Context-Root` header |
+
+### Stdio mode
+
+```bash
+git clone https://github.com/thunderkds/easy-context-mcp.git
+cd easy-context-mcp
+uv sync
+claude mcp add easy-context -- uv run --directory /path/to/easy-context-mcp easy-context-mcp
+```
+
+Replace `/path/to/easy-context-mcp` with the absolute path of your clone. Run `claude mcp add` inside the repo you want to index, or add `--scope user` to make it global. In stdio mode the server binds to the directory that Claude Code started in. The first `index_path` downloads the embedding model, so it needs network once. To avoid this, set `FASTEMBED_CACHE_PATH` to a directory that already holds the model.
+
+Instead of `claude mcp add`, copy `examples/mcp.stdio.json` to `.mcp.json` in your repo and set the path.
+
+### Docker service mode (shared)
+
+The service listens on `127.0.0.1:8767`. It mounts one workspace directory (the parent of your repos) read-only at the identical path, so every path in a request or response is a host path. The index directory `~/.easy-context` is a writable mount.
+
+```bash
+mkdir -p ~/.easy-context
+export EASY_CONTEXT_WORKSPACE=/abs/parent/of/your/repos
+export UID GID="$(id -g)"   # the container runs as your user
+docker compose up -d --build service
+claude mcp add --transport http easy-context http://127.0.0.1:8767/mcp \
+  --header 'X-Easy-Context-Root: ${PWD}'
+```
+
+Keep the single quotes around `${PWD}`. The shell must not expand it. Claude Code expands `${PWD}` each time it connects, so one registration serves every repo and every worktree. If you use double quotes, the shell fixes the path of the current directory and every repo then gets the wrong root.
+
+Or commit `examples/mcp.json` as `.mcp.json` in each repo. It holds the same `url` and header.
+
+Check that it works: run `/mcp` in Claude Code, which must list `easy-context` as connected. Then ask the agent to call `index_path` and `list_indexes`.
+
+Stop the service with `docker compose down`. The index stays in `~/.easy-context`.
+
+One-shot stdio server in the container (no network, same hardening):
+
+```bash
+export UID GID="$(id -g)"
+docker compose run --rm -w "$PWD" stdio
+```
+
+Docker Desktop (macOS and Windows) is not supported: the service needs host networking to reach the host loopback, and the cross-process file locks need a Linux bind mount.
+
+### Using from another repo / worktrees
+
+- Each repo and each git worktree is its own project with its own index. The project id comes from the canonical root path.
+- In service mode the root comes from the `X-Easy-Context-Root` header. Claude Code expands `${PWD}` to the directory it was launched from (checked in the HUN-5 spike: a worktree gets its own path). The server then walks up to the nearest `.git` file or directory, so a session started in a subfolder still binds to the repo root.
+- A stale `PWD` environment variable is passed as it is. Start Claude Code from a normal shell.
+- Fallback: every tool also takes an optional `root` argument (absolute path). If you send both the header and `root` and they differ, the call fails. A call with neither fails with "no project root".
+- In service mode the root must be inside `EASY_CONTEXT_WORKSPACE`. Otherwise the call fails with "outside the workspace". Put your worktrees under the workspace.
+- A new worktree does not re-embed everything. The embed cache `~/.easy-context/embed-cache.sqlite` is shared by all projects, so the worktree embeds only chunks whose text differs from chunks already seen.
+- In stdio mode the root is `root` argument, then `EASY_CONTEXT_ROOT`, then the working directory. Headers are ignored.
+
+## Tools
+
+Six tools. Every tool takes an optional `root` (see above).
+
+| Tool | Arguments | Result |
+|---|---|---|
+| `index_path` | `path` (default `.`), `force` | Starts a background job and returns at once: `job_id`, `status`, `files_total`, `estimated_seconds`. A call while a job is active returns that job. Unchanged files are skipped unless `force`. |
+| `search_semantic` | `query`, `k` (default 5, max 100), `path_prefix` | Top-k hits: `id, path, start_line, end_line, score, preview, text, truncated`. Hits from code symbol slices also carry `symbol` and `kind`, and a `part` for a symbol split into parts. `dropped` counts hits left out by the response cap. `indexing: true` means a job is running and the results cover the files committed so far. |
+| `get_slice` | `slice_id` | Full text of one slice with path and lines (`truncated` if the slice cap applies). |
+| `get_related` | `slice_id` or `path`, `limit` (default 10) | 1-hop neighbours with path and line range. Extra ones are counted in `dropped`. |
+| `list_indexes` | none | Every index on the machine: `project_id, root, root_exists, files, slices, last_index_at, indexing, status, job_id, files_done, files_total, eta_seconds, last_error`. |
+| `get_stats` | `project_id` | Counts, skip counts per reason from the last job, `last_index_at`, job status, and `chars_served` / `slices_served` (cumulative) plus `..._since_start` (this server process). With another project's `project_id` you get counts only, never slice text. |
+
+**Symbol match.** A query that names a code symbol (`Inventory.add`, `add`) ranks that symbol's slice first. The score is cosine similarity plus 2.0 for an exact or dotted-tail name match and plus 1.0 for a prefix match.
+
+**Edge types for `get_related`.** Results are ranked in this order:
+
+| Edge | Between | Notes |
+|---|---|---|
+| `calls` | function/method slice and the function it calls | Matched by name |
+| `called_by` | the reverse of `calls` | Computed at query time |
+| `contains` | class slice and its members | |
+| `extends` | class slice and its base types | |
+| `parent`, `child` | Markdown heading and its sub-heading | |
+| `same_file` | neighbouring slices in one file | At most two per slice |
+| `import` | file and the file it imports | Python, JS, TS; by regex. Has `direction`: `out` or `in` |
+| `link` | Markdown file and the file it links to | Has `direction` |
+
+With `path`, you get that file's `import` and `link` edges in both directions. With `slice_id`, you get those plus the slice's own edges.
+
+## Configuration
+
+All settings are environment variables. The server reads them at call time. Set them in the environment of the server process: for `claude mcp add` stdio, use `--env KEY=value`.
+
+| Variable | Default | Meaning |
+|---|---|---|
+| `EASY_CONTEXT_HOME` | `~/.easy-context` | Index directory: `indexes/<project-id>/index.sqlite`, `embed-cache.sqlite`, `models/` |
+| `EASY_CONTEXT_PORT` | `8767` | Port of the HTTP service (always on `127.0.0.1`) |
+| `EASY_CONTEXT_ROOT` | unset | Stdio mode only: project root when the call has no `root` argument |
+| `EASY_CONTEXT_WORKSPACE` | unset | Service mode: the only directory tree that can be indexed. Required by `compose.yaml` |
+| `EASY_CONTEXT_THREADS` | `2` | CPU threads for embedding. Jobs also run at low priority (nice 10) |
+| `EASY_CONTEXT_DEFAULT_K` | `5` | Default `k` of `search_semantic` |
+| `EASY_CONTEXT_MAX_SLICE_CHARS` | `2000` | Max characters of one slice in a result |
+| `EASY_CONTEXT_MAX_RESPONSE_CHARS` | `12000` | Max characters of one tool response |
+| `EASY_CONTEXT_MAX_FILE_BYTES` | `524288` | Files larger than this are skipped |
+| `EASY_CONTEXT_CHUNK_LINES` | `60` | Line-window size for files without symbol slices |
+| `EASY_CONTEXT_CHUNK_OVERLAP` | `10` | Line-window overlap (must be less than `EASY_CONTEXT_CHUNK_LINES`) |
+| `EASY_CONTEXT_REFRESH_SECONDS` | `300` | Service mode only: seconds between timed refresh cycles. `0` turns it off. See "Timed refresh" |
+| `EASY_CONTEXT_EMBED_BASE_URL` | unset | Optional remote OpenAI-compatible embedder (`POST {base}/embeddings`). `https`, or `http` on loopback only |
+| `EASY_CONTEXT_EMBED_API_KEY` | unset | API key for the remote embedder. Both this and the base URL must be set to use it |
+| `EASY_CONTEXT_EMBED_MODEL` | `text-embedding-3-small` | Model name sent to the remote embedder |
+| `FASTEMBED_CACHE_PATH` | `$EASY_CONTEXT_HOME/models` | Where FastEmbed keeps the local model. The image sets `/opt/fastembed` |
+
+A remote embedder and the local model produce different vectors. An index keeps the model it was built with, and the server refuses to mix them.
+
+**Docker.** `compose.yaml` passes only `EASY_CONTEXT_WORKSPACE`, `EASY_CONTEXT_HOME`, `EASY_CONTEXT_THREADS` and (for the service) `EASY_CONTEXT_PORT` into the container. To set another variable for the container, add it under `environment:` in `compose.yaml`. The service is limited to 2 CPUs and 2 GB memory.
+
+## Timed refresh and cleanup (service mode)
+
+- Every `EASY_CONTEXT_REFRESH_SECONDS` (default 300; `0` = off) the service re-checks each project that you already indexed with `index_path`. It never discovers repos on its own. Stdio mode never refreshes.
+- The check compares size and mtime first. It reads and hashes only files whose size or mtime changed, and re-embeds only files whose content changed.
+- A job that you start with `index_path` runs before refresh jobs. A project with an active job is skipped in that cycle.
+- **Orphan cleanup:** an index whose root no longer exists is deleted in the next cycle. The server deletes only if the parent of the root exists and, in Docker, the workspace mount is present and not empty. An unmounted volume therefore deletes nothing. Until then `list_indexes` shows `root_exists: false`.
+- **Embed-cache cleanup:** rows of the shared embed cache that no index uses are removed at most once a day.
+
+## Measured indexing time
+
+Indexing runs in the background, so its duration never blocks an agent. These numbers are measured, not promised, and no limit is enforced.
+
+Method: stdio mode driven through the MCP protocol (`index_path`, then poll `list_indexes` until `done`). Real model (`all-MiniLM-L6-v2`, ONNX), CPU only, default `EASY_CONTEXT_THREADS=2`, job at nice 10, empty `EASY_CONTEXT_HOME` (cold embed cache), model already on disk. Time is wall clock from the `index_path` call to `status: done`. Machine: Intel Core i7-1165G7 @ 2.80 GHz, 4 cores / 8 threads, Linux 7.0. Other programs (including Docker containers) were running, so expect noise.
+
+| Repo | Files indexed | Slices | Seconds | Files/sec | Slices/sec |
+|---|---|---|---|---|---|
+| `easy-context-mcp` (this repo, HUN-15 worktree) | 293 | 2641 | 98.1 | 2.99 | 26.9 |
+| `easy-verifier-mcp` (sibling repo) | 472 (1 more skipped as too large) | 8158 | 391.7 | 1.20 | 20.8 |
+
+A second `index_path` on an unchanged repo took 0.27 s for both. Expect minutes, not hours, for a repo of a few hundred files. Code is split by symbol, so a code-heavy repo gives about five times more slices than line windows, and the first index is slower. Later runs reuse the embed cache.
+
+## Limitations
+
+- **Languages.** Code symbol slices (one per function, class or method) exist only for Python, JavaScript and TypeScript (including JSX and TSX), Java and Kotlin. Other languages use line windows (default 60 lines, 10 overlap). A file that fails to parse also falls back to line windows.
+- **Kotlin.** A class or object written on one line falls back to line windows for that file.
+- **Chunk boundaries** are best effort. A slice can cut a logical unit in the middle.
+- **Call edges are matched by name, not by type.** A name with several candidates gets no edge. Calls on instance variables (`obj.method()`) get no edge. A call through a class name or an imported module does.
+- **Import edges** are found by regex for Python, JS and TS. They are incomplete: dynamic imports, aliases and re-exports can be missed. Other languages have no import edges.
+- **No language server (LSP).** There is no type information, no cross-language links and no rename tracking.
+- **Edge freshness.** Import and link edges are computed when the importing file is (re)processed. An edge to a file that you add later appears only after the importer changes or you run `index_path` with `force`.
+- **Index format upgrades** rebuild the index once, on the next `index_path`. Until then reads answer "Run index_path to rebuild it". Vectors come back from the embed cache, so the rebuild is quick.
+- **Freshness.** Stdio mode has no refresh: run `index_path` again after you change files. Service mode refreshes only already-indexed projects, on a timer (see above).
+- **Hardcoded secrets** inside normal source files are not detected (see `SECURITY.md`). Secret files are skipped by name.
+- **Symlinks** are never followed.
+- **Search** is a brute-force cosine scan of the whole index. This is fast for repos of this size and not meant for millions of slices.
+- **Platform.** The Docker service is tested on Linux with rootful Docker. The service has no authentication and listens on loopback only.
+- **Model.** `all-MiniLM-L6-v2` truncates each chunk at 256 tokens, so the tail of a long slice does not affect its search score.
+
+## Easy Kit policy
+
+Paste this into `CLAUDE.md` or `AGENTS.md` of a project that uses easy-context. The paragraph is the canonical text of section 10, plus a binding note.
+
+```markdown
+## Context retrieval (easy-context)
+
+Prefer easy-context MCP tools for exploration and discovery:
+- search_semantic — find code/docs by meaning
+- get_related — 1-hop structure (imports, links, headings)
+- get_slice — full text of one slice
+
+Use native Read/Edit when the path is already known and you need to change a file.
+Before first use in a project: index_path on the project root.
+
+Binding: each call works on one project, the repo (or git worktree) where the session started. In service mode the `X-Easy-Context-Root` header sets it; pass `root` (absolute path) only if the header is missing.
+```
+
+Example `.mcp.json` for each mode:
+
+- Docker service: `examples/mcp.json`
+- Stdio: `examples/mcp.stdio.json`
+
+The kit ships the policy paragraph and these snippets only. It does not install the server, and it does not guarantee a fresh index without a user or agent action.

@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "easy-context": {
+      "type": "http",
+      "url": "http://127.0.0.1:8767/mcp",
+      "headers": {
+        "X-Easy-Context-Root": "${PWD}"
+      }
+    }
+  }
+}
