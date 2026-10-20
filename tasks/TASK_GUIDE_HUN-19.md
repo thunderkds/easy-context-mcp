@@ -75,7 +75,7 @@ HUN-15 QA found three defects in the compose file (2026-10-20). User: "yes, crea
 | 2 | A new automated test parses `compose.yaml` and fails if any such setting is missing from either service's environment (the list is derived from the code, like `tests/test_docs.py`) | Requirement item 1 |
 | 3 | `EASY_CONTEXT_REFRESH_SECONDS=7 docker compose config service` shows `EASY_CONTEXT_REFRESH_SECONDS: "7"` in the service environment; with it unset the server default (300) applies inside the container (checked by running the image's python against `config.refresh_seconds()`, or equivalent) | FR-001c |
 | 4 | The compose header comments show `export UID GID="$(id -g)"` (or an equivalent that works in bash) and the header in single quotes `'X-Easy-Context-Root: ${PWD}'`, matching the README Docker section; `bash -n` on the commented commands passes | Requirement items 2, 3 |
-| 5 | `docker compose config` succeeds and `scripts/smoke_docker.sh` still passes; README Configuration/Docker text updated if it says these settings cannot be passed | FR-017 |
+| 5 | `docker compose config` succeeds (use a workspace other than `/tmp`: `/tmp` collides with the container's tmpfs mount) and `scripts/smoke_docker.sh` still passes; README Configuration/Docker text updated if it says these settings cannot be passed | FR-017 |
 
 ---
 
@@ -93,7 +93,7 @@ HUN-15 QA found three defects in the compose file (2026-10-20). User: "yes, crea
 ### Verification Command (exact, runnable)
 
 ```bash
-FASTEMBED_CACHE_PATH=/tmp/spike1/cache uv run pytest -q && uv run ruff check src tests && EASY_CONTEXT_WORKSPACE=/tmp docker compose config --quiet && bash scripts/smoke_docker.sh
+FASTEMBED_CACHE_PATH=/tmp/spike1/cache uv run pytest -q && uv run ruff check src tests && EASY_CONTEXT_WORKSPACE=/var/tmp docker compose config --quiet && bash scripts/smoke_docker.sh
 ```
 
 ### Evidence
