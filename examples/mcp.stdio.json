@@ -1,0 +1,9 @@
+{
+  "mcpServers": {
+    "easy-context": {
+      "type": "stdio",
+      "command": "uv",
+      "args": ["run", "--directory", "/path/to/easy-context-mcp", "easy-context-mcp"]
+    }
+  }
+}
