@@ -14,16 +14,16 @@
 
 | Check | Result | Notes / output snippet |
 |-------|--------|------------------------|
-| **New test(s) cover Acceptance Criteria (file paths pasted)** | ☐ pass / ☐ fail | [test file path(s) — required before Done] |
-| Verification command run | ☐ pass / ☐ fail | [paste actual output] |
-| Negative cases hold | ☐ pass / ☐ fail | |
-| verify | ☐ pass / ☐ fail / ☐ N/A | [what was observed — must literally state "pass" or "fail" here too, e.g. "skill run, feature confirmed working — pass": the merge gate scans this Notes column for the word "pass", not just the Result column] |
-| Review scope bounded to the change's blast radius (affected set, not whole repo) | ☐ pass / ☐ fail | [what was reviewed vs. skipped, and why] |
-| Full smoke suite still green (no regression) | ☐ pass / ☐ fail | |
-| easy-verifier confidence (advisory, PROJECT_SPEC Stage 4 Add-on) | overall: — · change_risk: — | [filled by Supervisor] |
-| **UI: Visual regression (diff or verdict pasted)** | ☐ pass / ☐ fail / ☐ N/A | [screenshot path or LLM verdict — required for UI tasks, Hard-Stop Gate 6] |
-| **UI: Design-system compliance (tokens/colors/typography verified)** | ☐ pass / ☐ fail / ☐ N/A | [method used + output] |
-| **UI: Responsiveness at target viewports** | ☐ pass / ☐ fail / ☐ N/A | [viewports tested, any overflow findings] |
+| **New test(s) cover Acceptance Criteria (file paths pasted)** | ☑ pass | tests/test_chunking_md.py (11 tests): AC1 sections+heading path, AC2 backtick/tilde fences, AC3 long-section split keeps path, AC4 stable ids + columns stored, AC5 Latin-1 + no-heading md; HUN-7-schema upgrade test |
+| Verification command run | ☑ pass | 2026-10-20T08:31:23Z `uv run pytest -q` → 87 passed, 6 warnings in 6.87s; `uv run ruff check src tests` → All checks passed! (Supervisor re-run) |
+| Negative cases hold | ☑ pass | unclosed fence, heading on last line, front matter, .md without headings, Latin-1 bytes |
+| verify | ☑ pass | Supervisor migration dry run on a real 528-slice index + AFTER demo (3 heading slices) — pass |
+| Review scope bounded to the change's blast radius (affected set, not whole repo) | ☑ pass | chunking.py, store.py, tools.py index_path row building, tests/test_chunking_md.py |
+| Full smoke suite still green (no regression) | ☑ pass | 87 passed incl. HUN-6/HUN-7 suites |
+| easy-verifier confidence (advisory, PROJECT_SPEC Stage 4 Add-on) | overall: 65 · change_risk: 100 | overall 65 (rated: architecture 100, requirement-fidelity 67, code-quality 67, security 18, test-strategy 75, blast-radius 65, reliability 64; 6 of 13 abstained) · change_risk: 100 (feature; test matched to changed code). Security 18 = false positives (116 sha256 hits in framework .claude/harness-lock.json; 3 SQL f-strings interpolating only constants/'?' placeholders, incl. the guarded ALTER from a constant tuple). Real signal: chunking.markdown_sections CCN 21 > 15 (P2). Churn-hotspot and requirement-trace metrics are low-signal this early. Report: reports/easy-verifier_HUN-9_20261020T153300.html |
+| **UI: Visual regression (diff or verdict pasted)** | ☐ N/A | pure backend task, no UI |
+| **UI: Design-system compliance (tokens/colors/typography verified)** | ☐ N/A | pure backend task, no UI |
+| **UI: Responsiveness at target viewports** | ☐ N/A | pure backend task, no UI |
 
 ---
 
@@ -42,15 +42,23 @@
 
 One slice for the whole document: headings are ignored, no heading path exists.
 
-**AFTER**: 2026-10-20, same Markdown through `chunking.chunk_file("README.md", md, 40, 5)`:
+**AFTER**:
+
+2026-10-20, same Markdown through `chunking.chunk_file("README.md", md, 40, 5)`:
 
 ```
-(1, 2, '# Install\nintro', 'Install', 1)
-(3, 8, '## Docker\nrun it\n```sh\n# comment\ndocker run x\n```', 'Install > Docker', 2)
-(9, 10, '## Local\nuv run', 'Install > Local', 2)
+(1, 2, '# Install
+intro', 'Install', 1)
+(3, 8, '## Docker
+run it
+```sh
+# comment
+docker run x
+```', 'Install > Docker', 2)
+(9, 10, '## Local
+uv run', 'Install > Local', 2)
 ```
 
-**DELTA**: [one sentence — what a user can now do that they could not before]
+**DELTA**: Agents searching docs now get one Markdown section per hit, labelled with its heading path, instead of arbitrary 60-line windows that cut across headings.
 
-**WITNESS**: [who ran it and when — derived from `memory/event-trace/Txxx.jsonl`, never the
-implementing agent alone]
+**WITNESS**: Supervisor (claude-opus-5-5): test re-run 2026-10-20T08:31:23Z, migration dry run 08:32Z; trace memory/event-trace/HUN-9.jsonl.
