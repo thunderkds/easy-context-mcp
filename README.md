@@ -299,6 +299,7 @@ This plan describes an original system. It does **not** require, include, or red
 ---
 
 *End of plan. Single version. Full scope above is the product; build order is only the path to that product.*
+
 ---
 
 # Product guide
