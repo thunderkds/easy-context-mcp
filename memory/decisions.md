@@ -22,7 +22,13 @@
 ### 2026-10-20 — Index layout v1 (HUN-7)
 **Decision**: `index.sqlite` schema v1 (`PRAGMA user_version=1`): meta(model_id, generation), files(path, sha256), slices(id, path, start/end_line, text, chunk_hash, float32 L2-normalised vector). Slice id = sha256("path:start:end")[:16]; line windows 60 lines / 10 overlap (env EASY_CONTEXT_CHUNK_LINES / _OVERLAP); one transaction per file bumps generation; search opens read-only and never creates an index; all symlinks skipped (stricter than FR-010).
 **Why**: DDR-0001 one-file-per-project; generation counter invalidates the in-memory numpy matrix.
+**Update (HUN-8, HUN-9)**: still user_version 1; additive nullable columns added by guarded `ALTER TABLE ... ADD COLUMN` in `open_write` — files(size, mtime_ns) and slices(heading_path, heading_level). Migration-safety GO for both (up/old-code/down/up dry run on a real 528-slice index).
 **Files**: src/easy_context_mcp/store.py, src/easy_context_mcp/chunking.py, src/easy_context_mcp/tools.py, src/easy_context_mcp/discovery.py
+
+### 2026-10-20 — File hygiene policy (HUN-8)
+**Decision**: Skip reasons `secret`, `binary`, `too_large`, `nested_repo`, `unreadable`, reported as the `skipped` object of `index_path` (was an int). Secret basenames (case-insensitive, checked after .gitignore so `!.env` cannot unlock): .env, .env.*, *.pem, *.key, id_rsa*/id_dsa*/id_ecdsa*/id_ed25519*, credentials.json, credentials, *.p12, *.pfx, .netrc, _netrc, .pgpass, .npmrc, .pypirc, .git-credentials, .htpasswd, *.jks, *.keystore, *.kdbx, *.ppk. Binary = extension list or null byte in first 8 KiB. Reads capped at max_bytes+1. Change detection: size+mtime fast path → sha256 → re-embed; force=true re-processes all; unseen stored paths under the indexed subpath are removed; unreadable keeps old rows.
+**Why**: FR-001/FR-002/FR-024; Stage 4 security review added the extra credential names and the bounded read.
+**Files**: src/easy_context_mcp/discovery.py, src/easy_context_mcp/tools.py, src/easy_context_mcp/store.py
 
 ## Infrastructure
 

@@ -45,3 +45,11 @@ FastMCP sends a tool result as text content `pydantic_core.to_json(result, inden
 Team states: Backlog, Todo, In Progress, Done, Canceled, Duplicate — `push status <ID> ready-for-review` fails (no status_map target). `pre_bash` blocks any push/merge while a task is In Progress on PROJECT_KANBAN.md, so after evidence is complete: `push status <ID> done` → `pull` → merge → push.
 **Files**: .claude/board.json, PROJECT_KANBAN.md
 
+### 2026-10-20 — A peer Claude session shares this checkout
+Peer session `easy-context-mcp-89` commits on local `main` too (DDR-0002, PRD FR-026..028, HUN-16/HUN-17, a kanban commit). `git add -A` in this session swept its uncommitted PRD.md edit into commit 9360d89. Stage files by name; check `git log` for foreign commits before merging; coordinate ownership with the user.
+**Files**: PRD.md, PROJECT_KANBAN.md, docs/ddr/0002-code-symbol-slices-and-graph.md
+
+### 2026-10-20 — Merge gate blocks read-only merge commands too
+`pre_bash_block_unsafe_merge` blocks any command containing a merge (even `git merge-tree` previews) while a task is In Progress. Set Done first, then preview/merge. Conflicts between parallel tasks go back to the later task's agent (`git merge main` in its worktree) — the Supervisor does not write the resolution.
+**Files**: .claude/hooks/pre_bash_block_unsafe_merge.py
+
