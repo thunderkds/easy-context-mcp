@@ -1,0 +1,256 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>code-review Report — hun-7-index-search</title>
+<style>
+  :root {
+    --bg:        #0a0a12;
+    --surface:   #111128;
+    --surface2:  #16162e;
+    --border:    #1e1e42;
+    --border-glow: #2a2a6e;
+    --text:      #e2e2f0;
+    --muted:     #6b6b9a;
+    --cyan:      #00d4ff;
+    --green:     #00ff88;
+    --amber:     #ffb800;
+    --red:       #ff3b6b;
+    --purple:    #a855f7;
+    --cyan-dim:  rgba(0,212,255,.12);
+    --green-dim: rgba(0,255,136,.12);
+    --red-dim:   rgba(255,59,107,.12);
+    --amber-dim: rgba(255,184,0,.12);
+  }
+
+  * { box-sizing: border-box; }
+  body {
+    font-family: 'Segoe UI', system-ui, sans-serif;
+    max-width: 900px;
+    margin: 2rem auto;
+    padding: 0 1rem;
+    color: var(--text);
+    background: var(--bg);
+    line-height: 1.5;
+  }
+  h1 { margin: 0; font-size: 1.25rem; color: #fff; letter-spacing: .02em; }
+  h2 { font-size: .85rem; color: var(--muted); margin: 0 0 .75rem; font-weight: 600; text-transform: uppercase; letter-spacing: .08em; }
+
+  /* ── HEADER ── */
+  .header {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-top: 2px solid var(--cyan);
+    border-radius: 10px;
+    padding: 1.5rem;
+    margin-bottom: 1.5rem;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    box-shadow: 0 0 24px rgba(0,212,255,.08), 0 4px 24px rgba(0,0,0,.5);
+  }
+  .header-meta { color: var(--muted); font-size: .85rem; margin-top: .3rem; }
+  .header-meta code { color: var(--cyan); background: var(--cyan-dim); padding: .1rem .4rem; border-radius: 4px; font-size: .8rem; }
+
+  /* ── OVERALL BADGE ── */
+  .badge { display: inline-block; padding: .3rem .9rem; border-radius: 999px; font-weight: 700; font-size: .8rem; letter-spacing: .05em; text-transform: uppercase; }
+  .badge-green  { background: var(--green-dim); color: var(--green); border: 1px solid rgba(0,255,136,.3); box-shadow: 0 0 8px rgba(0,255,136,.2); }
+  .badge-yellow { background: var(--amber-dim); color: var(--amber); border: 1px solid rgba(255,184,0,.3); box-shadow: 0 0 8px rgba(255,184,0,.2); }
+  .badge-red    { background: var(--red-dim);   color: var(--red);   border: 1px solid rgba(255,59,107,.3); box-shadow: 0 0 8px rgba(255,59,107,.2); }
+
+  /* ── SEVERITY BADGES ── */
+  .sev { display: inline-block; padding: .15rem .55rem; border-radius: 999px; font-weight: 700; font-size: .75rem; white-space: nowrap; letter-spacing: .04em; }
+  .sev-high { background: var(--red-dim);   color: var(--red);   border: 1px solid rgba(255,59,107,.25); }
+  .sev-med  { background: var(--amber-dim); color: var(--amber); border: 1px solid rgba(255,184,0,.25); }
+  .sev-low  { background: var(--cyan-dim);  color: var(--cyan);  border: 1px solid rgba(0,212,255,.25); }
+  .sev-info { background: rgba(168,85,247,.1); color: var(--purple); border: 1px solid rgba(168,85,247,.25); }
+
+  /* ── GAUGE CARDS ── */
+  .gauges { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1rem; margin-bottom: 1.5rem; }
+  .gauge-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 1.25rem;
+    transition: border-color .2s;
+  }
+  .gauge-card:hover { border-color: var(--border-glow); }
+  .gauge-label { font-size: .7rem; font-weight: 700; letter-spacing: .1em; color: var(--muted); text-transform: uppercase; margin-bottom: .5rem; }
+  .gauge-value { font-size: 2rem; font-weight: 700; margin-bottom: .6rem; font-variant-numeric: tabular-nums; }
+  .gauge-value-risk    { color: var(--red); text-shadow: 0 0 12px rgba(255,59,107,.5); }
+  .gauge-value-quality { color: var(--green); text-shadow: 0 0 12px rgba(0,255,136,.5); }
+  .gauge-value-effort  { color: var(--amber); text-shadow: 0 0 12px rgba(255,184,0,.5); }
+  .bar-bg   { background: var(--border); border-radius: 999px; height: 6px; overflow: hidden; }
+  .bar-fill { height: 6px; border-radius: 999px; }
+  .bar-risk    { background: linear-gradient(90deg, #ff3b6b, #ff006e); box-shadow: 0 0 8px rgba(255,59,107,.6); }
+  .bar-quality { background: linear-gradient(90deg, #00c96e, #00ff88); box-shadow: 0 0 8px rgba(0,255,136,.6); }
+  .bar-effort  { background: linear-gradient(90deg, #e0a000, #ffb800); box-shadow: 0 0 8px rgba(255,184,0,.6); }
+
+  /* ── SECTION CARD ── */
+  .section {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    overflow: hidden;
+    margin-bottom: 1.5rem;
+    box-shadow: 0 2px 16px rgba(0,0,0,.4);
+  }
+  .section-head {
+    padding: .7rem 1.25rem;
+    background: var(--surface2);
+    border-bottom: 1px solid var(--border);
+  }
+
+  /* ── TABLE ── */
+  table { width: 100%; border-collapse: collapse; }
+  th {
+    text-align: left;
+    padding: .6rem 1.25rem;
+    font-size: .72rem;
+    font-weight: 700;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: .07em;
+    background: var(--surface2);
+    border-bottom: 1px solid var(--border);
+  }
+  td {
+    padding: .8rem 1.25rem;
+    font-size: .875rem;
+    border-top: 1px solid var(--border);
+    vertical-align: top;
+    color: var(--text);
+  }
+  tr:hover td { background: rgba(255,255,255,.02); }
+  td pre {
+    margin: 0;
+    font-family: 'Cascadia Code', 'Fira Code', monospace;
+    font-size: .78rem;
+    background: #0d0d1f;
+    border: 1px solid var(--border);
+    border-left: 3px solid var(--cyan);
+    border-radius: 4px;
+    padding: .5rem .75rem;
+    white-space: pre-wrap;
+    word-break: break-word;
+    color: #b0c4ff;
+    line-height: 1.6;
+  }
+  td code {
+    font-family: 'Cascadia Code', 'Fira Code', monospace;
+    background: var(--cyan-dim);
+    color: var(--cyan);
+    padding: .1rem .4rem;
+    border-radius: 3px;
+    font-size: .78rem;
+  }
+
+  /* ── PROSE ── */
+  .prose {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 1.5rem;
+    line-height: 1.8;
+    margin-bottom: 1.5rem;
+    font-size: .9rem;
+    color: #c0c0e0;
+    box-shadow: 0 2px 16px rgba(0,0,0,.4);
+  }
+
+  /* ── FOOTER ── */
+  .footer {
+    font-size: .72rem;
+    color: var(--muted);
+    text-align: center;
+    padding-bottom: 2rem;
+    border-top: 1px solid var(--border);
+    padding-top: 1rem;
+    margin-top: .5rem;
+  }
+  .footer code { color: var(--purple); background: rgba(168,85,247,.1); padding: .1rem .4rem; border-radius: 3px; }
+</style>
+</head>
+<body>
+
+<!-- ═══ HEADER ═══════════════════════════════════════════════════════════ -->
+<div class="header">
+  <div>
+    <h1>code-review</h1>
+    <div class="header-meta">
+      Branch: <code>hun-7-index-search</code> &nbsp;·&nbsp; 2026-10-20
+    </div>
+  </div>
+  <span class="badge badge-green">Healthy</span>
+</div>
+
+<!-- ═══ DIMENSION GAUGES ═════════════════════════════════════════════════ -->
+<!--
+  OVERALL_CLASS  : green | yellow | red
+  OVERALL_LABEL  : e.g. "Healthy" | "Needs Attention" | "Critical"
+  RISK_SCORE     : integer 0–100 (higher = more risk)
+  QUALITY_SCORE  : integer 0–100 (higher = better quality)
+  EFFORT_SCORE   : integer 0–100 (higher = more adaptation work needed)
+-->
+<div class="gauges">
+  <div class="gauge-card">
+    <div class="gauge-label">Risk</div>
+    <div class="gauge-value gauge-value-risk">12%</div>
+    <div class="bar-bg"><div class="bar-fill bar-risk" style="width:12%"></div></div>
+  </div>
+  <div class="gauge-card">
+    <div class="gauge-label">Code Quality</div>
+    <div class="gauge-value gauge-value-quality">85%</div>
+    <div class="bar-bg"><div class="bar-fill bar-quality" style="width:85%"></div></div>
+  </div>
+  <div class="gauge-card">
+    <div class="gauge-label">Adaptation Effort</div>
+    <div class="gauge-value gauge-value-effort">25%</div>
+    <div class="bar-bg"><div class="bar-fill bar-effort" style="width:25%"></div></div>
+  </div>
+</div>
+
+<!-- ═══ FINDINGS TABLE ═══════════════════════════════════════════════════ -->
+
+<div class="section">
+  <div class="section-head"><h2>Findings</h2></div>
+  <table>
+    <thead>
+      <tr>
+        <th style="width:90px">Severity</th>
+        <th style="width:200px">File</th>
+        <th style="width:80px">Lines</th>
+        <th>Finding</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr><td><span class="sev sev-low">Low</span></td><td><code>src/easy_context_mcp/discovery.py</code></td><td>36-80</td><td><pre>P2: iter_files cyclomatic complexity 19 (verifier threshold 15). Split ignore matching / pruning helpers when HUN-8 extends discovery.</pre></td></tr>
+<tr><td><span class="sev sev-low">Low</span></td><td><code>src/easy_context_mcp/tools.py</code></td><td>77-90</td><td><pre>P2: k has no upper bound; a huge k loads every slice text before the response cap trims it (memory spike on large repos). Clamp or fetch lazily — assigned to HUN-10, which reshapes the tools.</pre></td></tr>
+<tr><td><span class="sev sev-low">Low</span></td><td><code>src/easy_context_mcp/discovery.py</code></td><td>86-88</td><td><pre>P3: O_NOFOLLOW guards only the final path component; a parent directory swapped for a symlink after discovery is not caught (needs write access to the repo). Document in SECURITY.md (HUN-15).</pre></td></tr>
+<tr><td><span class="sev sev-low">Low</span></td><td><code>src/easy_context_mcp/store.py</code></td><td>131</td><td><pre>P3: _MATRICES cache never evicts; per-project LRU belongs to HUN-10/HUN-14 (many projects in service mode).</pre></td></tr>
+<tr><td><span class="sev sev-info">Info</span></td><td><code>—</code></td><td>—</td><td><pre>Interim exposure: until HUN-8 merges, secret/binary/oversize files are indexed. HUN-8 is next P0; no release before it.</pre></td></tr>
+<tr><td><span class="sev sev-info">Info</span></td><td><code>—</code></td><td>—</td><td><pre>Process: agent had no Skill tool (backend-developer tools: Read/Write/Edit/Bash/Glob/Grep), so brainstorming (C3), tdd, code-review were done by hand. Supervisor ran Stage 4 review.</pre></td></tr>
+<tr><td><span class="sev sev-info">Info</span></td><td><code>PRD.md</code></td><td>FR-023</td><td><pre>Doc drift: FR-023 said directory embed-cache/, DDR-0001 + code use file embed-cache.sqlite. PRD corrected on main.</pre></td></tr>
+<tr><td><span class="sev sev-info">Info</span></td><td><code>—</code></td><td>—</td><td><pre>easy-verifier: overall 62 (rated: architecture 100, code-quality 67, security 18, test-strategy 60, reliability 64; 8 of 13 abstained) · change_risk: abstained (below_coverage_floor: diff > 200 KB, uv.lock). Security 18 is false positives: 116 sha256 hits in framework .claude/harness-lock.json, model id string flagged high-entropy, fixture password parameter, and 3 SQL f-strings that interpolate only '?' placeholders or a constant. Real signals: discovery.iter_files CCN 19 > 15 (P2 → HUN-8). Test-strategy uses file-name pairing (test_<module>.py); coverage is in tests/test_index_search.py. Report: reports/easy-verifier_HUN-7_20261020T152502.html</pre></td></tr>
+    </tbody>
+  </table>
+</div>
+
+<!-- ═══ SUMMARY PROSE ════════════════════════════════════════════════════ -->
+
+<div class="prose">
+  HUN-7 delivers the first full path: index_path walks the bound project (gitignore-aware, root-confined, no symlink following), chunks into 60-line windows with 10-line overlap, embeds with FastEmbed via the shared embed cache, stores one SQLite index per project, and serves capped search_semantic + get_slice. 76/76 tests and the real-model test pass (Supervisor re-run); real-model demo ranks the fixture auth function first (0.598). No P0/P1. easy-verifier confidence: overall 62 (rated: architecture 100, code-quality 67, security 18, test-strategy 60, reliability 64; 8 of 13 abstained) · change_risk: abstained (below_coverage_floor: diff > 200 KB, uv.lock). Security 18 is false positives: 116 sha256 hits in framework .claude/harness-lock.json, model id string flagged high-entropy, fixture password parameter, and 3 SQL f-strings that interpolate only '?' placeholders or a constant. Real signals: discovery.iter_files CCN 19 > 15 (P2 → HUN-8). Test-strategy uses file-name pairing (test_<module>.py); coverage is in tests/test_index_search.py. Report: reports/easy-verifier_HUN-7_20261020T152502.html
+</div>
+
+<!-- ═══ FOOTER ═══════════════════════════════════════════════════════════ -->
+<!--
+  MODEL     : e.g. claude-sonnet-4-6
+  TASK_ID   : e.g. T001 (or "—" if not task-scoped)
+  TIMESTAMP : ISO-8601, e.g. 2026-06-18T14:30:22
+-->
+<div class="footer">
+  Model: <code>claude-opus-5-5 (Supervisor)</code> &nbsp;·&nbsp; Task: HUN-7 &nbsp;·&nbsp; Generated: 2026-10-20T15:25:02
+</div>
+
+</body>
+</html>

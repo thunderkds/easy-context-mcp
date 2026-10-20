@@ -7,8 +7,9 @@ from typing import Any
 
 from mcp.server.fastmcp import Context, FastMCP
 
-from . import config
+from . import config, tools
 from .binding import Project, resolve_project
+from .embedding import Embedder, LocalEmbedder
 
 TOOL_NAMES = (
     "index_path",
@@ -21,14 +22,18 @@ TOOL_NAMES = (
 
 
 def _bind(ctx: Context, arg_root: str | None, service_mode: bool) -> Project:
-    request = ctx.request_context.request  # Starlette Request over HTTP, None over stdio
     header_root = None
-    if service_mode and request is not None:
-        header_root = request.headers.get(config.ROOT_HEADER)  # case-insensitive
+    if service_mode:
+        request = ctx.request_context.request  # Starlette Request over HTTP
+        if request is not None:
+            header_root = request.headers.get(config.ROOT_HEADER)  # case-insensitive
     return resolve_project(header_root=header_root, arg_root=arg_root, service_mode=service_mode)
 
 
-def create_app(*, service_mode: bool = False, port: int | None = None) -> FastMCP:
+def create_app(
+    *, service_mode: bool = False, port: int | None = None, embedder: Embedder | None = None
+) -> FastMCP:
+    embedder = embedder or LocalEmbedder()
     app = FastMCP(
         "easy-context",
         host=config.HOST,
@@ -39,22 +44,36 @@ def create_app(*, service_mode: bool = False, port: int | None = None) -> FastMC
         raise NotImplementedError(f"not_implemented: {tool} is not implemented yet")
 
     @app.tool()
-    def index_path(ctx: Context, path: str = ".", root: str | None = None) -> dict[str, Any]:
-        """Index a path inside the bound project."""
-        _bind(ctx, root, service_mode)
-        not_implemented("index_path")
+    def index_path(
+        ctx: Context, path: str = ".", force: bool = False, root: str | None = None
+    ) -> dict[str, Any]:
+        """Index a directory of the bound project (relative to its root, default the root).
+
+        Walks files (respecting .gitignore), chunks them into line windows, embeds them locally
+        and stores slices in this project's index. Runs to completion before returning.
+        """
+        return tools.index_path(_bind(ctx, root, service_mode), path, force, embedder=embedder)
 
     @app.tool()
-    def search_semantic(ctx: Context, query: str, root: str | None = None) -> dict[str, Any]:
-        """Semantic search in the bound project's index."""
-        _bind(ctx, root, service_mode)
-        not_implemented("search_semantic")
+    def search_semantic(
+        ctx: Context,
+        query: str,
+        k: int | None = None,
+        path_prefix: str | None = None,
+        root: str | None = None,
+    ) -> dict[str, Any]:
+        """Find slices by meaning. Returns up to k hits (default 5) with path + line range.
+
+        `path_prefix` (relative to the root) keeps only hits under that directory or file.
+        Hits that do not fit the response size cap are left out and counted in `dropped`.
+        """
+        project = _bind(ctx, root, service_mode)
+        return tools.search_semantic(project, query, k, path_prefix, embedder=embedder)
 
     @app.tool()
     def get_slice(ctx: Context, slice_id: str, root: str | None = None) -> dict[str, Any]:
-        """Fetch one slice by id."""
-        _bind(ctx, root, service_mode)
-        not_implemented("get_slice")
+        """Fetch one slice's text by id, with path + line range (`truncated` if capped)."""
+        return tools.get_slice(_bind(ctx, root, service_mode), slice_id)
 
     @app.tool()
     def get_related(ctx: Context, slice_id: str, root: str | None = None) -> dict[str, Any]:

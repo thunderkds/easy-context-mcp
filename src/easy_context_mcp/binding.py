@@ -28,15 +28,29 @@ def canonical_root(path: str) -> str:
 
 
 def _git_root(directory: str) -> str:
-    """Nearest ancestor (inclusive) holding a `.git` file or directory, else `directory`."""
+    """Nearest ancestor (inclusive) holding a `.git` file or directory, else `directory`.
+
+    The walk never climbs to $HOME or above it: a dotfiles repo at `~/.git` binds only when
+    $HOME itself was given.
+    """
+    ceiling = _home_and_ancestors()
     current = directory
     while True:
         if os.path.lexists(os.path.join(current, ".git")):
             return current
         parent = os.path.dirname(current)
-        if parent == current:
+        if parent == current or parent in ceiling:
             return directory
         current = parent
+
+
+def _home_and_ancestors() -> set[str]:
+    home = os.path.realpath(os.path.expanduser("~"))
+    found = {home}
+    while (parent := os.path.dirname(home)) != home:
+        found.add(parent)
+        home = parent
+    return found
 
 
 def project_id_for(root: str) -> str:

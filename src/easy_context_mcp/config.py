@@ -27,3 +27,60 @@ def port() -> int:
 
 def env_root() -> str | None:
     return os.environ.get("EASY_CONTEXT_ROOT") or None
+
+
+def _int_env(name: str, default: int, minimum: int = 1) -> int:
+    raw = os.environ.get(name)
+    if not raw:
+        return default
+    try:
+        value = int(raw)
+    except ValueError:
+        raise ValueError(f"{name} must be an integer, got {raw!r}") from None
+    if value < minimum:
+        raise ValueError(f"{name} must be >= {minimum}, got {value}")
+    return value
+
+
+def default_k() -> int:
+    return _int_env("EASY_CONTEXT_DEFAULT_K", 5)
+
+
+def max_slice_chars() -> int:
+    return _int_env("EASY_CONTEXT_MAX_SLICE_CHARS", 2000)
+
+
+def max_response_chars() -> int:
+    return _int_env("EASY_CONTEXT_MAX_RESPONSE_CHARS", 12000)
+
+
+def threads() -> int:
+    return _int_env("EASY_CONTEXT_THREADS", 2)
+
+
+def chunk_lines() -> int:
+    return _int_env("EASY_CONTEXT_CHUNK_LINES", 60)
+
+
+def chunk_overlap() -> int:
+    value = _int_env("EASY_CONTEXT_CHUNK_OVERLAP", 10, minimum=0)
+    if value >= chunk_lines():
+        raise ValueError(
+            f"EASY_CONTEXT_CHUNK_OVERLAP ({value}) must be < EASY_CONTEXT_CHUNK_LINES "
+            f"({chunk_lines()})"
+        )
+    return value
+
+
+def model_cache_dir() -> Path:
+    """FastEmbed model cache: FASTEMBED_CACHE_PATH if set, else <home>/models."""
+    raw = os.environ.get("FASTEMBED_CACHE_PATH")
+    return Path(raw).expanduser() if raw else home_dir() / "models"
+
+
+def index_file(project_id: str) -> Path:
+    return home_dir() / "indexes" / project_id / "index.sqlite"
+
+
+def embed_cache_file() -> Path:
+    return home_dir() / "embed-cache.sqlite"
