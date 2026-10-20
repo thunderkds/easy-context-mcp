@@ -14,15 +14,19 @@
 
 | Check | Result | Notes / output snippet |
 |-------|--------|------------------------|
-| **New test(s) cover Acceptance Criteria (file paths pasted)** | ☐ pass / ☐ fail | [test file path(s) — required before Done] |
-| Verification command run | ☐ pass / ☐ fail | [paste actual output] |
-| Negative cases hold | ☐ pass / ☐ fail | |
-| verify | ☐ pass / ☐ fail / ☐ N/A | [what was observed — must literally state "pass" or "fail" here too, e.g. "skill run, feature confirmed working — pass": the merge gate scans this Notes column for the word "pass", not just the Result column] |
-| Review scope bounded to the change's blast radius (affected set, not whole repo) | ☐ pass / ☐ fail | [what was reviewed vs. skipped, and why] |
-| Full smoke suite still green (no regression) | ☐ pass / ☐ fail | |
-| **UI: Visual regression (diff or verdict pasted)** | ☐ pass / ☐ fail / ☐ N/A | [screenshot path or LLM verdict — required for UI tasks, Hard-Stop Gate 6] |
-| **UI: Design-system compliance (tokens/colors/typography verified)** | ☐ pass / ☐ fail / ☐ N/A | [method used + output] |
-| **UI: Responsiveness at target viewports** | ☐ pass / ☐ fail / ☐ N/A | [viewports tested, any overflow findings] |
+| **New test(s) cover Acceptance Criteria (file paths pasted)** | ☑ pass | tests/test_symbols.py (new, AC1–AC11 incl. Stage 4 regressions `test_deeply_nested_file_falls_back_and_run_continues`, `test_grammar_abi_mismatch_falls_back_to_line_windows`); fixture tests/fixtures/symbols_repo/ (py, kt, java, ts, tsx, js); adjusted tests/test_index_search.py, tests/test_hygiene.py |
+| Verification command run | ☑ pass | 2026-10-20T09:02:18Z (Supervisor re-run, worktree at 6dda5f4) `FASTEMBED_CACHE_PATH=/tmp/spike1/cache uv run pytest -q` → 207 passed, 6 warnings in 8.21s; `uv run ruff check src tests` → All checks passed!. Guide's `uv run ruff check .` reports 175 errors, all in framework files (.claude/hooks, scripts/, skills/), identical on main — pre-existing, scope `src tests` as HUN-8/HUN-9 |
+| Negative cases hold | ☑ pass | unrecoverable syntax error and unsupported extension → line windows; 1500-deep nested classes → RecursionError caught, file falls back, run continues; grammar ABI ValueError → fallback; FTS5 syntax in query (10 cases) never an error; no FTS5 → vector-only; v1 index read → clear error, index_path rebuilds; v3 index refused untouched |
+| verify | ☑ pass | Supervisor end-to-end 2026-10-20T09:04:57Z, real MiniLM model: index_path on the HUN-16 worktree → status done, 211 files, 2081 slices, 70.8s; search_semantic rank 1 for `symbol_pieces` (symbols.py:210-249, kind function), `ProjectStore.name_matches` (store.py:215-238), `chunk_source`, `fts5_available`, `resolve_project`; get_slice returns symbol/kind — pass. migration-safety dry run (v1 up → new read clear error → new rebuild v2 → old write refused / old read ok → delete index → old up → new up) — pass |
+| Review scope bounded to the change's blast radius (affected set, not whole repo) | ☑ pass | symbols.py, chunking.py, store.py, tools.py, server.py docstring, pyproject.toml, tests; callers: tools._visit/index_path, search_semantic, get_slice. lane_check: C3, 15 files, 1183 lines, FITS; unpredicted server.py (docstring), test_hygiene.py, test_index_search.py (justified). Not reviewed: framework files |
+| Full smoke suite still green (no regression) | ☑ pass | 207 passed incl. HUN-6/7/8/9 suites |
+| Code review (Stage 4) | ☑ pass | P1 RecursionError on deep nesting aborted index_path — fixed 6dda5f4; P2 grammar ABI ValueError not a fallback — fixed 6dda5f4; P2 open (recommended, not blocking): `symbol_pieces` CCN 36 > 15; P2 FR-003 id wording — PRD updated 33cea1c. Report: reports/code-review_hun-16-symbols_20261020T160600.html |
+| Security review (manual; built-in needs `origin`) | ☑ pass | FTS5 query reduced to `[\w$]+` tokens inside one quoted phrase (no injection); SQL f-strings interpolate constants / '?' only; no new file access; 6 new deps pinned with hashes in uv.lock. Residual: native tree-sitter crash would take down the shared service (0.26.0 segfault excluded by pin). Report: reports/security-review_hun-16-symbols_20261020T160600.html |
+| migration-safety | ☑ pass | GO: user_version 1→2, v1 dropped+rebuilt in one transaction (derived cache; vectors from embed cache); old code refuses v2 writes, reads ok; down = delete index dir; dry run by agent (28 files) and Supervisor (scratch DB) |
+| easy-verifier confidence (advisory, PROJECT_SPEC Stage 4 Add-on) | overall: 60 · change_risk: 100 | overall 60 (rated: architecture 100, requirement-fidelity 67, code-quality 33, security 18, test-strategy 75, blast-radius 65, reliability 64; 6 of 13 abstained) · change_risk 100 (feature; new code fully tested). code-quality 33 = max CCN 36 in symbols.py + CCN>10 share 0.16 (real, P2) + no format config. security 18 = false positives (121 redaction hits in .claude/harness-lock.json; SQL f-strings over constants). Task scope: requirement-fidelity 67, 12 of 13 abstained. Report: reports/easy-verifier_HUN-16_20261020T160432.html |
+| **UI: Visual regression (diff or verdict pasted)** | ☐ N/A | pure backend task, no UI |
+| **UI: Design-system compliance (tokens/colors/typography verified)** | ☐ N/A | pure backend task, no UI |
+| **UI: Responsiveness at target viewports** | ☐ N/A | pure backend task, no UI |
 
 ---
 
@@ -144,5 +148,4 @@ indexed files=6 slices=58
 
 **DELTA**: a query that names a symbol now returns exactly that function / method / class as hit 1 (2-7 lines instead of a 20-60-line window), with `symbol` and `kind` on the hit.
 
-**WITNESS**: [who ran it and when — derived from `memory/event-trace/Txxx.jsonl`, never the
-implementing agent alone]
+**WITNESS**: Supervisor re-ran the test suite (2026-10-20T09:02:18Z) and an end-to-end real-model run (09:04:57Z) independently of the implementing agent; trace `memory/event-trace/HUN-16.jsonl`.
