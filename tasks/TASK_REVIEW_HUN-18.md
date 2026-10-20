@@ -57,7 +57,16 @@ files=2552 chunk_best=8.53s symbol_edges_best=0.42s rows=41078 edges=61540
 
 Golden snapshots (AC1/AC6) captured on the same code: `tests/fixtures/golden/*.txt` (slice + edge rows, 4 fixture repos) and `*.chunks.txt` (pieces with a 150-char cap, line windows 8/2). `tests/test_refactor_golden.py` passes: `8 passed in 0.52s`. Whole-repo dump of a frozen copy of main (11335 slice+edge rows, 95 split parts) is kept in the scratchpad, not committed.
 
-**AFTER**: [same command, post-change] OR [verbatim excerpt of the new content]
+**AFTER** (2026-10-20T10:44Z, refactored code):
+
+```
+C901 (max-complexity 10): All checks passed!
+frozen main copy, slice+edge dump and pieces/chunks dump: cmp identical to BEFORE
+timing: files=2552 chunk_best=8.30s symbol_edges_best=0.45s rows=41078 edges=61540 (BEFORE 8.53s / 0.42s)
+edge-set hash and chunk hash equal to BEFORE
+FASTEMBED_CACHE_PATH=/tmp/spike1/cache uv run pytest -q: 267 passed
+ruff check src tests: All checks passed!
+```
 
 **DELTA**: [one sentence — what a user can now do that they could not before]
 
