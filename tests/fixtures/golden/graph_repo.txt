@@ -1,0 +1,66 @@
+E	'app.py'	'app.py'	'same_file'	'2008ae7103668b8f'	'a8e2d484fc7f2762'
+E	'app.py'	'app.py'	'same_file'	'a8e2d484fc7f2762'	'2008ae7103668b8f'
+E	'app.py'	'auth.py'	'calls'	'2008ae7103668b8f'	'2244792480c825fb'
+E	'app.py'	'auth.py'	'import'	None	None
+E	'app.py'	'utils/helpers.py'	'calls'	'2008ae7103668b8f'	'871d39522346364e'
+E	'app.py'	'utils/helpers.py'	'import'	None	None
+E	'auth.py'	'auth.py'	'same_file'	'2244792480c825fb'	'89c2e51e23fd62cb'
+E	'auth.py'	'auth.py'	'same_file'	'89c2e51e23fd62cb'	'2244792480c825fb'
+E	'docs/guide.md'	'docs/guide.md'	'child'	'39e918da91aae957'	'aabeebc581621e2d'
+E	'docs/guide.md'	'docs/guide.md'	'child'	'39e918da91aae957'	'acc334808818495b'
+E	'docs/guide.md'	'docs/guide.md'	'child'	'acc334808818495b'	'03d1a7eafcae84ef'
+E	'docs/guide.md'	'docs/guide.md'	'child'	'acc334808818495b'	'ca68ac194e303675'
+E	'docs/guide.md'	'docs/guide.md'	'parent'	'03d1a7eafcae84ef'	'acc334808818495b'
+E	'docs/guide.md'	'docs/guide.md'	'parent'	'aabeebc581621e2d'	'39e918da91aae957'
+E	'docs/guide.md'	'docs/guide.md'	'parent'	'acc334808818495b'	'39e918da91aae957'
+E	'docs/guide.md'	'docs/guide.md'	'parent'	'ca68ac194e303675'	'acc334808818495b'
+E	'docs/guide.md'	'docs/guide.md'	'same_file'	'03d1a7eafcae84ef'	'acc334808818495b'
+E	'docs/guide.md'	'docs/guide.md'	'same_file'	'03d1a7eafcae84ef'	'ca68ac194e303675'
+E	'docs/guide.md'	'docs/guide.md'	'same_file'	'39e918da91aae957'	'acc334808818495b'
+E	'docs/guide.md'	'docs/guide.md'	'same_file'	'aabeebc581621e2d'	'ca68ac194e303675'
+E	'docs/guide.md'	'docs/guide.md'	'same_file'	'acc334808818495b'	'03d1a7eafcae84ef'
+E	'docs/guide.md'	'docs/guide.md'	'same_file'	'acc334808818495b'	'39e918da91aae957'
+E	'docs/guide.md'	'docs/guide.md'	'same_file'	'ca68ac194e303675'	'03d1a7eafcae84ef'
+E	'docs/guide.md'	'docs/guide.md'	'same_file'	'ca68ac194e303675'	'aabeebc581621e2d'
+E	'docs/index.md'	'auth.py'	'link'	None	None
+E	'docs/index.md'	'docs/guide.md'	'link'	None	None
+E	'noise.py'	'noise.py'	'same_file'	'22becdbb8c2f4dc9'	'c08c53c17648e3eb'
+E	'noise.py'	'noise.py'	'same_file'	'c08c53c17648e3eb'	'22becdbb8c2f4dc9'
+E	'pkg/sub.py'	'auth.py'	'import'	None	None
+E	'pkg/sub.py'	'utils/__init__.py'	'import'	None	None
+E	'pkg/sub.py'	'utils/helpers.py'	'import'	None	None
+E	'utils/helpers.py'	'utils/__init__.py'	'import'	None	None
+E	'utils/helpers.py'	'utils/helpers.py'	'same_file'	'0594372fae955af5'	'871d39522346364e'
+E	'utils/helpers.py'	'utils/helpers.py'	'same_file'	'871d39522346364e'	'0594372fae955af5'
+E	'utils/helpers.py'	'utils/more.py'	'calls'	'871d39522346364e'	'249769cd7a47196f'
+E	'utils/helpers.py'	'utils/more.py'	'import'	None	None
+E	'web/main.js'	'web/api.js'	'import'	None	None
+E	'web/main.js'	'web/main.js'	'same_file'	'25901b6b61ad6761'	'fd68cd3bfaaebb42'
+E	'web/main.js'	'web/main.js'	'same_file'	'fd68cd3bfaaebb42'	'25901b6b61ad6761'
+E	'web/main.js'	'web/setup.js'	'import'	None	None
+E	'web/main.js'	'web/view.ts'	'calls'	'fd68cd3bfaaebb42'	'2d9ddebf0c30fb44'
+E	'web/main.js'	'web/view.ts'	'import'	None	None
+S	'03d1a7eafcae84ef'	'docs/guide.md'	9	11	None	None	None	None	None	None	'Guide > Install > Linux'	3	'36a6b4d42fcff41b3b57759397275737eb9e5df1801ff7c58074c3efc1ed1f24'
+S	'0594372fae955af5'	'utils/helpers.py'	1	3	0	45	None	None	None	None	None	None	'f59cd52782e091fc2410c0c792b1d897778192e900e8bd4a2c120495295efa1f'
+S	'0da30e6939dd7fee'	'web/unrelated.js'	1	1	0	30	None	None	None	None	None	None	'd392d14796c3e4520965ef0841e3e12a37a2c63d353842b10c3729a9c25daad6'
+S	'2008ae7103668b8f'	'app.py'	12	14	250	348	'main'	'function'	None	'{"calls":[["verify_password",null],["fmt",null]]}'	None	None	'b4689e3b9f33630a6fcf8d1cec21cfb34617aa9f16d7aed3b5211a4b13214c0d'
+S	'2244792480c825fb'	'auth.py'	4	5	25	101	'verify_password'	'function'	None	None	None	None	'17cdff975762d533fb51ad7c819ae924268a478bfb393ebf62df4e520f87d8cb'
+S	'22becdbb8c2f4dc9'	'noise.py'	1	1	0	48	None	None	None	None	None	None	'0623e3ad8b32f7b7b7886263836821e4c805c7ebe9c8bcc31fae22ffe65e0508'
+S	'249769cd7a47196f'	'utils/more.py'	1	2	0	40	'title'	'function'	None	'{"calls":[["title","name"]]}'	None	None	'335e86e309e57f815e1a29f8fb250e5205d656dc349b9b45dc38322739dafc9c'
+S	'25901b6b61ad6761'	'web/main.js'	1	5	0	143	None	None	None	None	None	None	'09eb9fa3a32062a7e75cfc55c9696e9b5715e68ab68fc1da436187ae77c33917'
+S	'2d9ddebf0c30fb44'	'web/view.ts'	1	3	0	75	'render'	'function'	None	None	None	None	'd0b123ffcb1f255bc653b2649ed4711b086e952552cb58fa559be788b4f91b4f'
+S	'3257b34db93c7758'	'web/setup.js'	1	1	0	20	None	None	None	None	None	None	'6ac9bc6809854bcb90860d84ab2da8df76f4a6664cf1b544eb8efd35c299d269'
+S	'39e918da91aae957'	'docs/guide.md'	1	3	None	None	None	None	None	None	'Guide'	1	'd394f48790c63f15bf40c09cc88ed17f3c59e118b927ceb8b7eb3fc6829cfa81'
+S	'531efdf66b518758'	'web/api.js'	1	1	0	47	None	None	None	None	None	None	'2709aff20de4c17e1f5f09bcca201f95419407cd30b73ad79912800e5c4898a2'
+S	'67acc0ca670996ae'	'utils/stray.py'	1	3	0	59	None	None	None	None	None	None	'265979792503745e135f5c92bc78358dded8964fc91957cf7e6cb73b136e13e1'
+S	'871d39522346364e'	'utils/helpers.py'	6	7	48	90	'fmt'	'function'	None	'{"calls":[["title","more"]]}'	None	None	'40a3458d649202dc52f10ff3212d59b28e9368d9b56113a6fee9396bbec781ae'
+S	'89c2e51e23fd62cb'	'auth.py'	1	1	0	22	None	None	None	None	None	None	'28a15aab1e906e1b5f00b272606440ae352f86eef079a7691a0133b0ff3525b9'
+S	'970bea11275b4068'	'docs/unrelated.md'	1	3	None	None	None	None	None	None	'Unrelated'	1	'fe5e0b24f6470128564c0d55564db11d855ecd2e6ae818b8e32e4caa3a33df7c'
+S	'a8e2d484fc7f2762'	'app.py'	1	9	0	247	None	None	None	None	None	None	'5820b21ae91dc9de1cca7c51111db6a341ecf85eafa2f5c7d4b8000af4a83b4f'
+S	'aabeebc581621e2d'	'docs/guide.md'	17	19	None	None	None	None	None	None	'Guide > Usage'	2	'ac56ea2165f78c395fa653461dab959c438cd84f3b5fe83275dd2a6017d0f8de'
+S	'acc334808818495b'	'docs/guide.md'	5	7	None	None	None	None	None	None	'Guide > Install'	2	'd7f82b7a639fa6d8f5bfcec081714add047236e015b05dd2a492d86a610884f5'
+S	'aeb879d8320b8990'	'pkg/sub.py'	1	3	0	60	None	None	None	None	None	None	'4084eb356e02d90e2b6c80aed18cc082ee0d9f42447d8df0bfe5a029f38a4877'
+S	'c08c53c17648e3eb'	'noise.py'	4	5	51	91	'shout'	'function'	None	'{"calls":[["upper","text"]]}'	None	None	'e660e176e0289a62799c86a42d3766c41d53164451d67531665e64da4a62bf24'
+S	'ca68ac194e303675'	'docs/guide.md'	13	15	None	None	None	None	None	None	'Guide > Install > Windows'	3	'5a37aa0c63633ad1370777962e7cbc46f073d1c1dccb7442c7ebe56e3d3b927f'
+S	'f4218440916b2e24'	'docs/index.md'	1	5	None	None	None	None	None	None	'Docs index'	1	'11fdfef30f6b6acba33860d7596ed2ef260a4b3417caee5193b20218144303f1'
+S	'fd68cd3bfaaebb42'	'web/main.js'	7	9	145	201	'start'	'function'	None	'{"calls":[["render",null],["load","api"]]}'	None	None	'e3c5860b7e0310a9510a333a199bce0382bd9fe649518db1a993172817cc5718'
