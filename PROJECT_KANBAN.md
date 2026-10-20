@@ -11,6 +11,7 @@
 ### Todo
 
 ### In Progress
+- [ ] **HUN-19** — Docker compose: pass all EASY_CONTEXT settings into the container, fix the UID and header comments | Common-Infrastructure-Agent | C1 | Risk: Medium | P1 | @hungnh1110 | Guide: `tasks/TASK_GUIDE_HUN-19.md`
 
 ### Ready for Review
 
