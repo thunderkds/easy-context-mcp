@@ -19,13 +19,13 @@
 - [ ] **HUN-15** — Docs + end-to-end: README install, limits, SECURITY.md, LICENSE, Easy Kit policy | QA-Automation-Agent | C1 | Risk: Low | P1 | @hungnh1110 | Guide: `tasks/TASK_GUIDE_HUN-15.md`
 
 ### In Progress
-- [ ] **HUN-7** — First full path: index_path → search_semantic → get_slice with caps | Backend-Implementer | C3 | Risk: High | P0 | @hungnh1110 | Guide: `tasks/TASK_GUIDE_HUN-7.md`
 
 ### Ready for Review
 
 ### Done
 - [x] **HUN-5** — Spikes: offline FastEmbed load, flock+WAL across container/host, ${PWD} in .mcp.json headers | Common-Infrastructure-Agent | C1 | Risk: Low | P0 | @hungnh1110 | Guide: `tasks/TASK_GUIDE_HUN-5.md`
 - [x] **HUN-6** — Skeleton: package, stdio + streamable-HTTP server, project binding, empty list_indexes | Backend-Implementer | C2 | Risk: High | P0 | @hungnh1110 | Guide: `tasks/TASK_GUIDE_HUN-6.md`
+- [x] **HUN-7** — First full path: index_path → search_semantic → get_slice with caps | Backend-Implementer | C3 | Risk: High | P0 | @hungnh1110 | Guide: `tasks/TASK_GUIDE_HUN-7.md`
 
 ### Closed (will not do)
 
