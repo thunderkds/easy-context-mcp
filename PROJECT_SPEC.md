@@ -129,8 +129,8 @@ Every task gets an independent, no-LLM confidence score from the Easy family ver
 | HUN-9 | Markdown heading chunks, stable slice ids, non-UTF-8 files | Done | Backend-Implementer | C1 | Low | P1 |
 | HUN-10 | Background jobs: non-blocking index_path, progress/ETA, single writer, low priority | Done | Backend-Implementer | C3 | Medium | P0 |
 | HUN-11 | Graph edges + get_related (1-hop) | Todo | Backend-Implementer | C2 | Medium | P1 |
-| HUN-12 | Stats: get_stats served counters, final list_indexes fields | Todo | Backend-Implementer | C1 | Low | P1 |
-| HUN-13 | Docker service: image with baked model, compose stdio + shared service, hardening | Todo | Common-Infrastructure-Agent | C2 | Medium | P0 |
+| HUN-12 | Stats: get_stats served counters, final list_indexes fields | In Progress | Backend-Implementer | C1 | Low | P1 |
+| HUN-13 | Docker service: image with baked model, compose stdio + shared service, hardening | In Progress | Common-Infrastructure-Agent | C2 | Medium | P0 |
 | HUN-14 | Timed refresh, orphan cleanup, worktree embed reuse | Todo | Backend-Implementer | C2 | Medium | P1 |
 | HUN-15 | Docs + end-to-end: README install, limits, SECURITY.md, LICENSE, Easy Kit policy | Todo | QA-Automation-Agent | C1 | Low | P1 |
 
