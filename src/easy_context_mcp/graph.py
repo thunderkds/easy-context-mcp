@@ -49,34 +49,46 @@ def _py_module(parts: str, bases: list[str], known: Collection[str]) -> str | No
     return None
 
 
+def _py_from_bases(dots: str, here: str) -> list[str]:
+    """Directories a `from <dots><mod> import` is looked up in."""
+    if not dots:
+        return [*_PY_BASES, here]
+    base = here
+    for _ in range(len(dots) - 1):
+        base = posixpath.dirname(base)
+    return [base]
+
+
+def _py_from_targets(match: re.Match, here: str, known: Collection[str]) -> list[str | None]:
+    """Module, then each imported name as a submodule, for one `from x import a, b` match."""
+    dots, mod, names = match.groups()
+    bases = _py_from_bases(dots, here)
+    out = [_py_module(mod, bases, known)]
+    for item in names.replace("(", " ").replace(")", " ").split(","):
+        name = item.split()[0] if item.split() else ""  # `b as c` -> b
+        if name.isidentifier():
+            out.append(_py_module(f"{mod}.{name}" if mod else name, bases, known))
+    return out
+
+
+def _py_import_targets(match: re.Match, here: str, known: Collection[str]) -> list[str | None]:
+    """Each module of one `import a, b.c` match."""
+    out = []
+    for item in match.group(1).split(","):
+        mod = item.split()[0] if item.split() else ""
+        if re.fullmatch(r"[\w.]+", mod):
+            out.append(_py_module(mod, [*_PY_BASES, here], known))
+    return out
+
+
 def _python_targets(path: str, text: str, known: Collection[str]) -> list[str]:
     here = posixpath.dirname(path)
-    out: list[str] = []
-
-    def add(dst: str | None) -> None:
-        if dst:
-            out.append(dst)
-
+    found: list[str | None] = []
     for m in _PY_FROM.finditer(text):
-        dots, mod, names = m.groups()
-        if dots:
-            base = here
-            for _ in range(len(dots) - 1):
-                base = posixpath.dirname(base)
-            bases = [base]
-        else:
-            bases = [*_PY_BASES, here]
-        add(_py_module(mod, bases, known))
-        for item in names.replace("(", " ").replace(")", " ").split(","):
-            name = item.split()[0] if item.split() else ""  # `b as c` -> b
-            if name.isidentifier():
-                add(_py_module(f"{mod}.{name}" if mod else name, bases, known))
+        found += _py_from_targets(m, here, known)
     for m in _PY_IMPORT.finditer(text):
-        for item in m.group(1).split(","):
-            mod = item.split()[0] if item.split() else ""
-            if re.fullmatch(r"[\w.]+", mod):
-                add(_py_module(mod, [*_PY_BASES, here], known))
-    return out
+        found += _py_import_targets(m, here, known)
+    return [dst for dst in found if dst]
 
 
 def _js_targets(path: str, text: str, known: Collection[str]) -> list[str]:
@@ -165,6 +177,108 @@ _CLASSES = ("class", "interface", "object")
 _IMPLICIT_THIS = (".java", ".kt", ".kts")
 
 
+class _Resolver:
+    """Name lookup over every symbol row, for `symbol_edges`."""
+
+    def __init__(self, syms: list, imports: dict[str, set[str]]):
+        self.imports = imports
+        self.by_tail: dict[str, list] = {}
+        self.by_qualified: dict[tuple[str, str], list] = {}
+        for sym in syms:
+            self.by_tail.setdefault(sym[2].rsplit(".", 1)[-1], []).append(sym)
+            self.by_qualified.setdefault((sym[1], sym[2]), []).append(sym)
+
+    @staticmethod
+    def _only(hit: list):
+        return hit[0] if len(hit) == 1 else None
+
+    def _first_pool(self, pools: list[list]):
+        """The only member of the first non-empty pool; None when that pool has several."""
+        for pool in pools:
+            if pool:
+                return self._only(pool)
+        return None
+
+    def _imported_member(self, path: str, name: str, receiver: str):
+        """Symbol `name` of the imported file whose module name is `receiver`."""
+        for dst in self.imports.get(path, ()):
+            stem = posixpath.splitext(posixpath.basename(dst))[0]
+            if stem == "__init__":
+                stem = posixpath.basename(posixpath.dirname(dst))
+            if stem == receiver:
+                return self._only(self.by_qualified.get((dst, name), []))
+        return None
+
+    def member_of(self, path: str, name: str, receiver: str):
+        owner = self.resolve_name(path, receiver, _CLASSES)
+        if owner is not None:
+            return self._only(self.by_qualified.get((owner[1], f"{owner[2]}.{name}"), []))
+        return self._imported_member(path, name, receiver)
+
+    def resolve_name(self, path: str, name: str, kinds: tuple[str, ...]):
+        cands = [c for c in self.by_tail.get(name, []) if c[3] in kinds]
+        imported = self.imports.get(path, ())
+        return self._first_pool([[c for c in cands if c[1] == path],
+                                 [c for c in cands if c[1] in imported], cands])
+
+    def _enclosing_hit(self, path: str, qualified: str, name: str, cands: list) -> list:
+        """Members `name` of the enclosing classes, innermost first; the first non-empty hit."""
+        parts = qualified.split(".")[:-1]
+        while parts:
+            hit = [c for c in self.by_qualified.get((path, ".".join([*parts, name])), [])
+                   if c in cands]
+            if hit:
+                return hit
+            parts.pop()
+        return []
+
+    def _candidates(self, name: str, kinds: tuple[str, ...] | None) -> list:
+        return [c for c in self.by_tail.get(name, []) if kinds is None or c[3] in kinds]
+
+    def _scoped_pools(self, path: str, cands: list, receiver: str | None) -> list[list]:
+        """Candidates narrowed to the same file, then the imported files, then all."""
+        same = [c for c in cands if c[1] == path]
+        if receiver is None and len(same) > 1:
+            same = [c for c in same if "." not in c[2]] or same
+        imported = self.imports.get(path, ())
+        return [same, [c for c in cands if c[1] in imported], cands]
+
+    def resolve(self, src, name: str, receiver: str | None, kinds: tuple[str, ...] | None):
+        _, path, qualified, _, _ = src
+        if kinds is None and _is_recursion(qualified, name, receiver):
+            return None
+        if receiver not in (None, "self"):
+            return self.member_of(path, name, receiver)
+        cands = self._candidates(name, kinds)
+        if receiver == "self" or path.endswith(_IMPLICIT_THIS):
+            hit = self._enclosing_hit(path, qualified, name, cands)
+            if hit:
+                return self._only(hit)
+        return self._first_pool(self._scoped_pools(path, cands, receiver))
+
+    def edges(self, src) -> set[tuple[str, str, str, str, str]]:
+        """`contains`, `calls` and `extends` edges whose source is the symbol `src`."""
+        sid, path, _, _, refs = src
+        out = set()
+        owner = self.by_qualified.get((path, refs.get("parent")))
+        if owner and owner[0][3] in _CLASSES:
+            out.add((path, path, "contains", owner[0][0], sid))
+        for name, receiver in refs.get("calls", ()):
+            dst = self.resolve(src, name, receiver, None)
+            if dst and dst[0] != sid:
+                out.add((path, dst[1], "calls", sid, dst[0]))
+        for name in refs.get("bases", ()):
+            dst = self.resolve(src, name, None, _CLASSES)
+            if dst and dst[0] != sid:
+                out.add((path, dst[1], "extends", sid, dst[0]))
+        return out
+
+
+def _is_recursion(qualified: str, name: str, receiver: str | None) -> bool:
+    """A call to the caller's own name on itself (recursion or an overload)."""
+    return name == qualified.rsplit(".", 1)[-1] and receiver in (None, "self")
+
+
 def symbol_edges(
     rows: Collection[SymbolRow], imports: dict[str, set[str]]
 ) -> set[tuple[str, str, str, str, str]]:
@@ -180,71 +294,8 @@ def symbol_edges(
     caller's own name is recursion (or an overload): no edge. `extends` targets classes only.
     """
     syms = [(i, p, q, k, json.loads(r) if r else {}) for i, p, q, k, r in rows]
-    by_tail: dict[str, list] = {}
-    by_qualified: dict[tuple[str, str], list] = {}
-    for sym in syms:
-        by_tail.setdefault(sym[2].rsplit(".", 1)[-1], []).append(sym)
-        by_qualified.setdefault((sym[1], sym[2]), []).append(sym)
-
-    def member_of(path: str, name: str, receiver: str):
-        owner = resolve_name(path, receiver, _CLASSES)
-        if owner is not None:
-            hit = by_qualified.get((owner[1], f"{owner[2]}.{name}"), [])
-            return hit[0] if len(hit) == 1 else None
-        for dst in imports.get(path, ()):
-            stem = posixpath.splitext(posixpath.basename(dst))[0]
-            if stem == "__init__":
-                stem = posixpath.basename(posixpath.dirname(dst))
-            if stem == receiver:
-                hit = by_qualified.get((dst, name), [])
-                return hit[0] if len(hit) == 1 else None
-        return None
-
-    def resolve_name(path: str, name: str, kinds: tuple[str, ...]):
-        cands = [c for c in by_tail.get(name, []) if c[3] in kinds]
-        for pool in ([c for c in cands if c[1] == path],
-                     [c for c in cands if c[1] in imports.get(path, ())], cands):
-            if pool:
-                return pool[0] if len(pool) == 1 else None
-        return None
-
-    def resolve(src, name: str, receiver: str | None, kinds: tuple[str, ...] | None):
-        _, path, qualified, _, _ = src
-        if name == qualified.rsplit(".", 1)[-1] and receiver in (None, "self") and kinds is None:
-            return None
-        if receiver not in (None, "self"):
-            return member_of(path, name, receiver)
-        cands = [c for c in by_tail.get(name, []) if kinds is None or c[3] in kinds]
-        if receiver == "self" or (receiver is None and path.endswith(_IMPLICIT_THIS)):
-            parts = qualified.split(".")[:-1]
-            while parts:
-                hit = [c for c in by_qualified.get((path, ".".join([*parts, name])), [])
-                       if c in cands]
-                if hit:
-                    return hit[0] if len(hit) == 1 else None
-                parts.pop()
-        same = [c for c in cands if c[1] == path]
-        if receiver is None and len(same) > 1:
-            same = [c for c in same if "." not in c[2]] or same
-        for pool in (same, [c for c in cands if c[1] in imports.get(path, ())], cands):
-            if pool:
-                return pool[0] if len(pool) == 1 else None
-        return None
-
+    resolver = _Resolver(syms, imports)
     out: set[tuple[str, str, str, str, str]] = set()
     for src in syms:
-        sid, path, _, _, refs = src
-        parent = refs.get("parent")
-        if parent:
-            owner = by_qualified.get((path, parent))
-            if owner and owner[0][3] in _CLASSES:
-                out.add((path, path, "contains", owner[0][0], sid))
-        for name, receiver in refs.get("calls", ()):
-            dst = resolve(src, name, receiver, None)
-            if dst and dst[0] != sid:
-                out.add((path, dst[1], "calls", sid, dst[0]))
-        for name in refs.get("bases", ()):
-            dst = resolve(src, name, None, _CLASSES)
-            if dst and dst[0] != sid:
-                out.add((path, dst[1], "extends", sid, dst[0]))
+        out |= resolver.edges(src)
     return out

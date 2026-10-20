@@ -32,6 +32,31 @@ _FENCE = re.compile(r"^ {0,3}(`{3,}|~{3,})(.*)$")
 Chunk = tuple[int, int, str, str | None, int | None]
 
 
+def _headings(lines: list[str]) -> list[tuple[int, int, str]]:
+    """(line index, level, title) of every ATX heading outside code fences."""
+    heads: list[tuple[int, int, str]] = []
+    fence = ""
+    for i, line in enumerate(lines):
+        m = _FENCE.match(line)
+        if m:
+            fence = _fence_after(fence, m)
+            continue
+        h = None if fence else _HEADING.match(line)
+        if h:
+            title = re.sub(r"[ \t]+#+$", "", h.group(2) or "").strip()
+            heads.append((i, len(h.group(1)), title))
+    return heads
+
+
+def _fence_after(fence: str, m: re.Match) -> str:
+    """The open fence marker ("" when none) after a fence line `m`."""
+    marker = m.group(1)
+    if not fence:
+        return marker
+    closes = marker[0] == fence[0] and len(marker) >= len(fence) and not m.group(2).strip()
+    return "" if closes else fence
+
+
 def markdown_sections(text: str, size: int, overlap: int) -> list[Chunk]:
     """One chunk per ATX heading section; lines before the first heading join the first section.
 
@@ -41,21 +66,7 @@ def markdown_sections(text: str, size: int, overlap: int) -> list[Chunk]:
     lines = text.split("\n")
     if lines and lines[-1] == "":
         lines.pop()
-    heads: list[tuple[int, int, str]] = []  # index, level, title
-    fence = ""
-    for i, line in enumerate(lines):
-        m = _FENCE.match(line)
-        if m:
-            marker = m.group(1)
-            if not fence:
-                fence = marker
-            elif marker[0] == fence[0] and len(marker) >= len(fence) and not m.group(2).strip():
-                fence = ""
-            continue
-        h = None if fence else _HEADING.match(line)
-        if h:
-            title = re.sub(r"[ \t]+#+$", "", h.group(2) or "").strip()
-            heads.append((i, len(h.group(1)), title))
+    heads = _headings(lines)
     if not heads:
         return [(s, e, t, None, None) for s, e, t in line_windows(text, size, overlap)]
     out: list[Chunk] = []

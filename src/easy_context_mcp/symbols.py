@@ -125,29 +125,66 @@ def _name(node, src: bytes) -> str | None:
     return _text(src, name)
 
 
+def _unwrap(child, lang: _Lang):
+    """The declaration node inside a decorator / `export` wrapper (or `child` itself); may be None."""
+    if child.type not in lang.wrappers:
+        return child
+    return (child.child_by_field_name("definition") or child.child_by_field_name("declaration")
+            or child.child_by_field_name("value"))
+
+
+def _variable_function(node, src: bytes):
+    """(node, name, "function") for `const f = () => ...` / `var g = function () {}`, else None."""
+    for decl in node.named_children:
+        value = decl.child_by_field_name("value")
+        if value is not None and value.type in _JS_FUNCTION_VALUES:
+            return node, _text(src, decl.child_by_field_name("name")), "function"
+    return None
+
+
 def _declaration(child, lang: _Lang, src: bytes, top: bool):
     """(node, name, kind) for a declaration child, or None. Unwraps decorators and `export`."""
-    node = child
-    if child.type in lang.wrappers:
-        node = (child.child_by_field_name("definition") or child.child_by_field_name("declaration")
-                or child.child_by_field_name("value"))
-        if node is None:
-            return None
-    if top and node.type in ("lexical_declaration", "variable_declaration"):
-        for decl in node.named_children:  # const f = () => ..., var g = function () {}
-            value = decl.child_by_field_name("value")
-            if value is not None and value.type in _JS_FUNCTION_VALUES:
-                return node, _text(src, decl.child_by_field_name("name")), "function"
+    node = _unwrap(child, lang)
+    if node is None:
         return None
+    if top and node.type in ("lexical_declaration", "variable_declaration"):
+        return _variable_function(node, src)
     kind = lang.defs.get(node.type)
     if kind is None:
         return None
     if node.type == "class_declaration" and any(c.type == "interface" for c in node.children):
         kind = "interface"  # Kotlin `interface I` parses as class_declaration
     name = _name(node, src)
-    if name is None:
-        name = "default" if child.type == "export_statement" else None
+    if name is None and child.type == "export_statement":
+        name = "default"
     return (node, name, kind) if name else None
+
+
+def _first_row(child, lang: _Lang, src: bytes, starts: list[int]) -> int:
+    """First row of `child`, extended up over the comment block directly above it."""
+    first = child.start_point.row
+    prev = child.prev_named_sibling
+    while (prev is not None and prev.type in lang.comments and prev.end_point.row >= first - 1
+           and not src[starts[prev.start_point.row] : prev.start_byte].strip()):
+        first = prev.start_point.row  # attach the comment block directly above
+        prev = prev.prev_named_sibling
+    return first
+
+
+def _last_row(child, first: int) -> int:
+    last = child.end_point.row
+    if child.end_point.column == 0 and last > first:
+        last -= 1
+    return last
+
+
+def _collect_members(node, lang: _Lang, src: bytes, starts: list[int], qualified: str,
+                     out: list[_Sym]) -> None:
+    """Collect the members of the container just appended to `out` (its body, if it has one)."""
+    body = node.child_by_field_name("body") or next(
+        (c for c in node.named_children if c.type in lang.bodies), None)
+    if body is not None:
+        _collect(body, lang, src, starts, qualified + ".", len(out) - 1, out)
 
 
 def _collect(parent_node, lang: _Lang, src: bytes, starts: list[int], prefix: str,
@@ -162,22 +199,11 @@ def _collect(parent_node, lang: _Lang, src: bytes, starts: list[int], prefix: st
         node, name, kind = found
         if parent is not None and kind == "function":
             kind = "method"
-        first = child.start_point.row
-        prev = child.prev_named_sibling
-        while (prev is not None and prev.type in lang.comments and prev.end_point.row >= first - 1
-               and not src[starts[prev.start_point.row] : prev.start_byte].strip()):
-            first = prev.start_point.row  # attach the comment block directly above
-            prev = prev.prev_named_sibling
-        last = child.end_point.row
-        if child.end_point.column == 0 and last > first:
-            last -= 1
+        first = _first_row(child, lang, src, starts)
         qualified = prefix + name
-        out.append(_Sym(first, last, qualified, kind, parent, node))
+        out.append(_Sym(first, _last_row(child, first), qualified, kind, parent, node))
         if kind in _CONTAINERS:
-            body = node.child_by_field_name("body") or next(
-                (c for c in node.named_children if c.type in lang.bodies), None)
-            if body is not None:
-                _collect(body, lang, src, starts, qualified + ".", len(out) - 1, out)
+            _collect_members(node, lang, src, starts, qualified, out)
 
 
 _NAMES = {"identifier", "type_identifier", "property_identifier"}
@@ -233,37 +259,54 @@ def _receiver(node, src: bytes) -> str | None:
     return "?"
 
 
-def _call(node, src: bytes) -> tuple[str, str | None] | None:
-    """(name, receiver) when `node` is a call or `new` expression, else None."""
-    kind = node.type
-    if kind == "method_invocation":  # Java
-        name = node.child_by_field_name("name")
-        return (_text(src, name), _receiver(node.child_by_field_name("object"), src)) if name else None
-    if kind == "object_creation_expression":
-        name = _type_name(node.child_by_field_name("type"), src) if node.child_by_field_name("type") else None
-        return (name, None) if name else None
-    if kind == "new_expression":  # JS / TS
-        ctor = node.child_by_field_name("constructor")
-        return (_text(src, ctor), None) if ctor is not None and ctor.type == "identifier" else None
-    if kind not in ("call", "call_expression"):
-        return None
-    fn = node.child_by_field_name("function") or (
-        node.named_children[0] if node.named_children else None)
-    if fn is None:
-        return None
+_MEMBER_FIELDS = {"attribute": "attribute", "member_expression": "property"}  # Python, JS / TS
+
+
+def _java_call(node, src: bytes) -> tuple[str, str | None] | None:
+    name = node.child_by_field_name("name")
+    return (_text(src, name), _receiver(node.child_by_field_name("object"), src)) if name else None
+
+
+def _java_new(node, src: bytes) -> tuple[str, None] | None:
+    type_node = node.child_by_field_name("type")
+    name = _type_name(type_node, src) if type_node else None
+    return (name, None) if name else None
+
+
+def _js_new(node, src: bytes) -> tuple[str, None] | None:
+    ctor = node.child_by_field_name("constructor")
+    return (_text(src, ctor), None) if ctor is not None and ctor.type == "identifier" else None
+
+
+def _callee(fn, src: bytes) -> tuple[str, str | None] | None:
+    """(name, receiver) for the `function` part of a call expression."""
     if fn.type == "identifier":
         return _text(src, fn), None
-    if fn.type == "attribute":  # Python
-        attr = fn.child_by_field_name("attribute")
-        return (_text(src, attr), _receiver(fn.child_by_field_name("object"), src)) if attr else None
-    if fn.type == "member_expression":  # JS / TS
-        prop = fn.child_by_field_name("property")
-        return (_text(src, prop), _receiver(fn.child_by_field_name("object"), src)) if prop else None
+    field = _MEMBER_FIELDS.get(fn.type)
+    if field:
+        member = fn.child_by_field_name(field)
+        return (_text(src, member), _receiver(fn.child_by_field_name("object"), src)) if member else None
     if fn.type == "navigation_expression":  # Kotlin
         kids = fn.named_children
         if len(kids) >= 2 and kids[-1].type == "identifier":
             return _text(src, kids[-1]), _receiver(kids[0], src)
     return None
+
+
+def _call(node, src: bytes) -> tuple[str, str | None] | None:
+    """(name, receiver) when `node` is a call or `new` expression, else None."""
+    kind = node.type
+    if kind == "method_invocation":  # Java
+        return _java_call(node, src)
+    if kind == "object_creation_expression":
+        return _java_new(node, src)
+    if kind == "new_expression":  # JS / TS
+        return _js_new(node, src)
+    if kind not in ("call", "call_expression"):
+        return None
+    fn = node.child_by_field_name("function") or (
+        node.named_children[0] if node.named_children else None)
+    return _callee(fn, src) if fn is not None else None
 
 
 def _calls(node, skip: set, src: bytes) -> list[tuple[str, str | None]]:
@@ -297,6 +340,19 @@ def _refs(syms: list[_Sym], i: int, skip: set, src: bytes) -> str | None:
     return json.dumps(refs, separators=(",", ":")) if refs else None
 
 
+def _cut_line(src: bytes, row: int, pos: int, end: int, cap: int) -> list[tuple[int, int, int, int]]:
+    """Cut one over-long line into byte ranges of <= cap bytes, each on a UTF-8 boundary."""
+    parts = []
+    while pos < end:
+        cut = min(pos + cap, end)
+        while pos < cut < end and src[cut] & 0xC0 == 0x80:
+            cut -= 1
+        cut = cut if cut > pos else min(pos + cap, end)
+        parts.append((row, row, pos, cut))
+        pos = cut
+    return parts
+
+
 def _split(src: bytes, starts: list[int], ends: list[int], first: int, last: int,
            cap: int) -> list[tuple[int, int, int, int]]:
     """Cut rows first..last into (first_row, last_row, start_byte, end_byte) parts of <= cap chars.
@@ -316,14 +372,7 @@ def _split(src: bytes, starts: list[int], ends: list[int], first: int, last: int
             parts.append((group, row - 1, starts[group], ends[row - 1]))
             group = None
         if group is None and chars(starts[row], ends[row]) > cap:
-            pos = starts[row]
-            while pos < ends[row]:
-                cut = min(pos + cap, ends[row])
-                while pos < cut < ends[row] and src[cut] & 0xC0 == 0x80:
-                    cut -= 1
-                cut = cut if cut > pos else min(pos + cap, ends[row])
-                parts.append((row, row, pos, cut))
-                pos = cut
+            parts += _cut_line(src, row, starts[row], ends[row], cap)
             continue
         if group is None:
             group = row
@@ -332,7 +381,8 @@ def _split(src: bytes, starts: list[int], ends: list[int], first: int, last: int
     return parts
 
 
-def symbol_pieces(path: str, data: bytes, max_chars: int) -> list[Piece] | None:
+def _parse(path: str, data: bytes):
+    """(tree, lang, src, bom) for a supported, cleanly parsed file; None otherwise."""
     dot = path.rfind(".")
     lang = LANGS.get(path[dot:].lower()) if dot >= 0 else None
     language = _language(lang.module, lang.func) if lang else None
@@ -346,49 +396,100 @@ def symbol_pieces(path: str, data: bytes, max_chars: int) -> list[Piece] | None:
     root = tree.root_node
     if root.type == "ERROR" or any(c.type == "ERROR" or c.is_missing for c in root.children):
         return None  # error outside any declaration: boundaries cannot be trusted
+    return tree, lang, src, bom
+
+
+def _line_bounds(data: bytes) -> tuple[list[int], list[int]]:
+    """Start and end byte (newline excluded) of every line."""
     starts = [0] + [m.end() for m in re.finditer(b"\n", data)]
     if starts[-1] == len(data):
         starts.pop()  # a trailing newline does not start a line
     ends = [s - 1 for s in starts[1:]] + [len(data) - (1 if data.endswith(b"\n") else 0)]
-    syms: list[_Sym] = []
-    _collect(root, lang, src, [max(0, s - bom) for s in starts], "", None, syms)
+    return starts, ends
 
-    skip = {(s.node.start_byte, s.node.end_byte, s.node.type) for s in syms}
-    refs = [_refs(syms, i, skip, src) for i in range(len(syms))]
 
-    owner: list[int | None] = [None] * len(starts)
+def _shares_first_line(sym: _Sym, syms: list[_Sym], owner: list[int | None]) -> bool:
+    """True when `sym` starts on a line its container or a sibling already owns."""
+    parent_first = syms[sym.parent].first if sym.parent is not None else -1
+    if sym.first <= parent_first or sym.last >= len(owner):
+        return True
+    return owner[sym.first] != sym.parent
+
+
+def _assign_owners(syms: list[_Sym], rows: int) -> list[int | None]:
+    """The innermost symbol index owning each line row; None for code outside symbols."""
+    owner: list[int | None] = [None] * rows
     for i, sym in enumerate(syms):
-        parent_first = syms[sym.parent].first if sym.parent is not None else -1
-        if sym.first <= parent_first or sym.last >= len(starts) or owner[sym.first] != sym.parent:
+        if _shares_first_line(sym, syms, owner):
             continue  # shares its first line with its container or a sibling: stays there
         for row in range(sym.first, sym.last + 1):
             if owner[row] == sym.parent:
                 owner[row] = i
+    return owner
+
+
+def _owner_runs(owner: list[int | None]):
+    """(first_row, last_row) of each run of consecutive rows with the same owner."""
+    row = 0
+    while row < len(owner):
+        end = row
+        while end + 1 < len(owner) and owner[end + 1] == owner[row]:
+            end += 1
+        yield row, end
+        row = end + 1
+
+
+def _trim_blank(data: bytes, starts: list[int], ends: list[int], first: int, last: int):
+    while first <= last and not data[starts[first] : ends[first]].strip():
+        first += 1
+    while last >= first and not data[starts[last] : ends[last]].strip():
+        last -= 1
+    return first, last
+
+
+def _symbol_of(who: int | None, seen: set[int], syms: list[_Sym]) -> _Sym | None:
+    """The symbol for its first run of lines; later runs of the same owner are gaps."""
+    if who is None:
+        return None
+    new = who not in seen
+    seen.add(who)
+    return syms[who] if new else None
+
+
+def _run_pieces(data: bytes, bounds: tuple[list[int], list[int]], rows: tuple[int, int],
+                sym: _Sym | None, refs: str | None, max_chars: int) -> list[Piece]:
+    """Pieces for rows first..last (non-blank at both ends), split by the cap."""
+    starts, ends = bounds
+    parts = _split(data, starts, ends, rows[0], rows[1], max_chars)
+    return [
+        Piece(a + 1, b + 1, sb, eb, data[sb:eb].decode("utf-8", errors="replace"),
+              sym.name if sym else None, sym.kind if sym else None,
+              f"{n}/{len(parts)}" if len(parts) > 1 else None,
+              refs if sym and n == 1 else None)
+        for n, (a, b, sb, eb) in enumerate(parts, 1)
+    ]
+
+
+def symbol_pieces(path: str, data: bytes, max_chars: int) -> list[Piece] | None:
+    parsed = _parse(path, data)
+    if parsed is None:
+        return None
+    tree, lang, src, bom = parsed
+    starts, ends = _line_bounds(data)
+    syms: list[_Sym] = []
+    _collect(tree.root_node, lang, src, [max(0, s - bom) for s in starts], "", None, syms)
+
+    skip = {(s.node.start_byte, s.node.end_byte, s.node.type) for s in syms}
+    refs = [_refs(syms, i, skip, src) for i in range(len(syms))]
+    owner = _assign_owners(syms, len(starts))
 
     out: list[Piece] = []
     seen: set[int] = set()
-    row = 0
-    while row < len(starts):
-        end = row
-        while end + 1 < len(starts) and owner[end + 1] == owner[row]:
-            end += 1
-        first, last = row, end
-        while first <= last and not data[starts[first] : ends[first]].strip():
-            first += 1
-        while last >= first and not data[starts[last] : ends[last]].strip():
-            last -= 1
+    for row, end in _owner_runs(owner):
         who = owner[row]
-        sym = syms[who] if who is not None and who not in seen else None
-        if who is not None:
-            seen.add(who)
+        sym = _symbol_of(who, seen, syms)
+        first, last = _trim_blank(data, starts, ends, row, end)
         if first <= last:
-            parts = _split(data, starts, ends, first, last, max_chars)
-            for n, (a, b, sb, eb) in enumerate(parts, 1):
-                out.append(Piece(
-                    a + 1, b + 1, sb, eb, data[sb:eb].decode("utf-8", errors="replace"),
-                    sym.name if sym else None, sym.kind if sym else None,
-                    f"{n}/{len(parts)}" if len(parts) > 1 else None,
-                    refs[who] if sym and n == 1 else None,
-                ))
-        row = end + 1
+            out += _run_pieces(data, (starts, ends), (first, last), sym,
+                               refs[who] if sym else None, max_chars)
     return out
