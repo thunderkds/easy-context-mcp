@@ -15,3 +15,13 @@
 **Files**: PRD.md, compose.yaml, Dockerfile
 
 ## Infrastructure
+
+### 2026-10-20 — easy-verifier confidence score on every task (advisory)
+**Decision**: Stage 4 add-on: score each task with the shared easy-verifier container (127.0.0.1:8766) at `changes` (main...HEAD) and `task` scope, write its report, attach numbers + report to TASK_REVIEW Evidence and the html-report. Advisory, not a gate. Worktrees must stay under ~/workspace (container mount).
+**Why**: User request — independent, no-LLM confidence signal per task.
+**Files**: PROJECT_SPEC.md
+
+### 2026-10-20 — Push at the end of every stage
+**Decision**: When a pipeline stage completes, commit and `git push` the current branch to remote `github`.
+**Why**: User instruction ("keep when you complete the stage and push").
+**Files**: PROJECT_SPEC.md

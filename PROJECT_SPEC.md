@@ -76,6 +76,23 @@ refresh. Embeddings: FastEmbed `all-MiniLM-L6-v2`, baked into the image. Decisio
 
 ---
 
+## Stage 4 Add-on: easy-verifier Confidence Score (user request 2026-10-20)
+
+Every task gets an independent, no-LLM confidence score from the Easy family verifier, attached to its review report. **Advisory — not a gate**: the Stage 4 gates in `CLAUDE.md` are unchanged.
+
+- **Service**: shared container `easy-verifier` (`temvar/easy-verifier-mcp`), `http://127.0.0.1:8766/mcp`, registered for this repo (`claude mcp add --transport http easy-verifier http://127.0.0.1:8766/mcp`, local scope). It mounts `/home/hungnguyenhuu/workspace` read-only at the identical path.
+- **Constraint**: task worktrees must live under `/home/hungnguyenhuu/workspace` (default: sibling `../easy-context-mcp-<ID>`), or the verifier cannot read them.
+- **When**: Stage 4, after `code-review` (and `security-review` where required), before `html-report`.
+- **Calls** (Supervisor, against the task's worktree absolute path):
+  1. `score(repo=<worktree>, scope="changes", ref="main...HEAD")` — answer `needs_input.change_kind` by calling again with `agent_input.change_kind` (usually `feature`; `bugfix` for bugfix-skill tasks).
+  2. `score(repo=<worktree>, scope="task", task_id="<ID>")` — kit-aware rating against `tasks/TASK_GUIDE_<ID>.md`.
+  3. `write_report(findings=<code-review findings>, repo=<worktree>, scope="changes", ref="main...HEAD", agent_input=<same>)` — writes the verifier's HTML report under `~/.easy-verifier-reports/`.
+- **Record**: in `tasks/TASK_REVIEW_<ID>.md` Evidence, a row "easy-verifier confidence" with `overall`, `change_risk`, contributors, abstentions and the report path; in the Stage 4 `html-report`, the same numbers in the summary plus a link to the verifier report. Copy the verifier report into `reports/easy-verifier_<ID>_<YYYYMMDDTHHMMSS>.html` so it is committed beside the other reports.
+- **Reading it**: `overall` = mean of the rated repository-health dimensions; `change_risk` = rating of the change itself; always state abstentions next to the number (a score with 3 of 13 dimensions rated is low-confidence by itself).
+- **If the container is down**: record "easy-verifier unavailable" in the Evidence row and tell the user; do not block the task on it.
+
+---
+
 ## Sub-Agent Team
 
 > Draft — confirmed at Stage 1.5. Frontend-Implementer is part of the base team but this product has no UI.
