@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Thinking Report — Planning — setup/stage-0-1</title>
+<style>
+  :root {
+    --bg:        #0a0a12;
+    --surface:   #111128;
+    --surface2:  #16162e;
+    --border:    #1e1e42;
+    --border-glow: #2a2a6e;
+    --text:      #e2e2f0;
+    --muted:     #6b6b9a;
+    --cyan:      #00d4ff;
+    --green:     #00ff88;
+    --amber:     #ffb800;
+    --red:       #ff3b6b;
+    --purple:    #a855f7;
+    --cyan-dim:  rgba(0,212,255,.12);
+    --green-dim: rgba(0,255,136,.12);
+    --red-dim:   rgba(255,59,107,.12);
+    --amber-dim: rgba(255,184,0,.12);
+    --purple-dim: rgba(168,85,247,.12);
+  }
+
+  * { box-sizing: border-box; }
+  body {
+    font-family: 'Segoe UI', system-ui, sans-serif;
+    max-width: 980px;
+    margin: 2rem auto;
+    padding: 0 1rem;
+    color: var(--text);
+    background: var(--bg);
+    line-height: 1.5;
+  }
+  h1 { margin: 0; font-size: 1.25rem; color: #fff; letter-spacing: .02em; }
+  h2 { font-size: .8rem; color: var(--muted); margin: 0 0 .75rem; font-weight: 700; text-transform: uppercase; letter-spacing: .1em; }
+
+  /* ── HEADER ── */
+  .header {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-top: 2px solid var(--purple);
+    border-radius: 10px;
+    padding: 1.5rem;
+    margin-bottom: 1.5rem;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    box-shadow: 0 0 24px rgba(168,85,247,.08), 0 4px 24px rgba(0,0,0,.5);
+  }
+  .header-meta { color: var(--muted); font-size: .85rem; margin-top: .3rem; }
+  .header-meta code { color: var(--cyan); background: var(--cyan-dim); padding: .1rem .4rem; border-radius: 4px; font-size: .8rem; }
+
+  /* ── BADGE ── */
+  .badge { display: inline-block; padding: .3rem .9rem; border-radius: 999px; font-weight: 700; font-size: .78rem; letter-spacing: .05em; text-transform: uppercase; }
+  .badge-green  { background: var(--green-dim);  color: var(--green);  border: 1px solid rgba(0,255,136,.3); box-shadow: 0 0 8px rgba(0,255,136,.2); }
+  .badge-yellow { background: var(--amber-dim);  color: var(--amber);  border: 1px solid rgba(255,184,0,.3); box-shadow: 0 0 8px rgba(255,184,0,.2); }
+  .badge-blue   { background: var(--cyan-dim);   color: var(--cyan);   border: 1px solid rgba(0,212,255,.3); box-shadow: 0 0 8px rgba(0,212,255,.2); }
+
+  /* ── SECTION CARD ── */
+  .section {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    overflow: hidden;
+    margin-bottom: 1.5rem;
+    box-shadow: 0 2px 16px rgba(0,0,0,.4);
+  }
+  .section-head {
+    padding: .7rem 1.25rem;
+    background: var(--surface2);
+    border-bottom: 1px solid var(--border);
+  }
+
+  /* ── DECISION BOX ── */
+  .decision-box { padding: 1.25rem 1.5rem; }
+  .decision-problem { font-size: .82rem; color: var(--muted); margin-bottom: .5rem; letter-spacing: .01em; }
+  .decision-statement { font-size: 1.05rem; font-weight: 600; color: #fff; margin-bottom: .85rem; }
+  .decision-statement::before { content: '→ '; color: var(--cyan); }
+  .decision-rationale {
+    font-size: .875rem;
+    color: #b0b0d0;
+    line-height: 1.75;
+    border-left: 3px solid var(--green);
+    padding-left: .85rem;
+    box-shadow: -6px 0 12px rgba(0,255,136,.08);
+  }
+
+  /* ── TRADE-OFF MATRIX ── */
+  .matrix-wrap { overflow-x: auto; }
+  table { width: 100%; border-collapse: collapse; }
+  th {
+    padding: .65rem 1.25rem;
+    font-size: .72rem;
+    font-weight: 700;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: .07em;
+    text-align: left;
+    background: var(--surface2);
+    border-bottom: 1px solid var(--border);
+  }
+  th.col-chosen { background: rgba(0,255,136,.07); color: var(--green); }
+  td { padding: .72rem 1.25rem; font-size: .875rem; border-top: 1px solid var(--border); vertical-align: middle; color: var(--text); }
+  tr:hover td { background: rgba(255,255,255,.02); }
+  td.criteria-label { font-weight: 500; color: #9090b8; width: 200px; }
+  td.col-chosen { background: rgba(0,255,136,.04); }
+
+  .cell-yes     { color: var(--green);  font-weight: 700; }
+  .cell-partial { color: var(--amber);  font-weight: 700; }
+  .cell-no      { color: var(--red);    font-weight: 700; }
+
+  /* ── ASSUMPTIONS LIST ── */
+  .item-list { padding: 1rem 1.5rem; }
+  .item-list ul { margin: 0; padding-left: 1.25rem; }
+  .item-list li { font-size: .875rem; line-height: 1.75; color: #b0b0d0; }
+  .item-list li + li { margin-top: .3rem; }
+  .tag { display: inline-block; font-size: .7rem; font-weight: 700; padding: .1rem .5rem; border-radius: 4px; margin-right: .4rem; vertical-align: middle; letter-spacing: .04em; text-transform: uppercase; }
+  .tag-assumption { background: var(--amber-dim);  color: var(--amber);  border: 1px solid rgba(255,184,0,.25); }
+  .tag-deferred   { background: var(--purple-dim); color: var(--purple); border: 1px solid rgba(168,85,247,.25); }
+  .tag-resolved   { background: var(--green-dim);  color: var(--green);  border: 1px solid rgba(0,255,136,.25); }
+
+  /* ── FOOTER ── */
+  .footer {
+    font-size: .72rem;
+    color: var(--muted);
+    text-align: center;
+    padding: 1rem 0 2rem;
+    border-top: 1px solid var(--border);
+    margin-top: .5rem;
+  }
+  code { font-family: 'Cascadia Code', 'Fira Code', monospace; background: var(--cyan-dim); color: var(--cyan); padding: .1rem .4rem; border-radius: 3px; font-size: .78rem; }
+  .footer code { background: var(--purple-dim); color: var(--purple); }
+</style>
+</head>
+<body>
+
+<!-- ═══ HEADER ═══════════════════════════════════════════════════════════ -->
+<!--
+  SESSION_TYPE : e.g. "Brainstorming", "Grilling", "Planning"
+  BRANCH       : git branch name
+  DATE         : e.g. 2026-06-18
+  BADGE_CLASS  : green | yellow | blue
+  BADGE_LABEL  : e.g. "Direction Locked" | "Pending Approval" | "Deferred"
+-->
+<div class="header">
+  <div>
+    <h1>Thinking Report — Planning</h1>
+    <div class="header-meta">
+      Branch: <code>setup/stage-0-1</code> &nbsp;·&nbsp; 2026-10-20
+    </div>
+  </div>
+  <span class="badge badge-green">Direction Locked</span>
+</div>
+
+<!-- ═══ DECISION BOX ══════════════════════════════════════════════════════ -->
+<!--
+  PROBLEM_STATEMENT : one sentence — what question was being answered
+  DECISION_STATEMENT: the chosen option / conclusion, one sentence
+  DECISION_RATIONALE: 2–4 sentences explaining WHY this was chosen
+-->
+<div class="section">
+  <div class="section-head"><h2>Decision</h2></div>
+  <div class="decision-box">
+    <div class="decision-problem">Problem: How should the approved PRD + DDR-0001 be split into tasks that agents can pick up independently?</div>
+    <div class="decision-statement">11 vertical slices (HUN-5 … HUN-15) following README §11 build order, spikes and the first end-to-end path first.</div>
+    <div class="decision-rationale">Each slice cuts through every layer and is verifiable on its own with an exact command. P0 work front-loads the riskiest parts — spikes, project binding and path safety — so later tasks build on verified ground. After HUN-7 the hygiene, Markdown, jobs and graph slices can run in parallel.</div>
+  </div>
+</div>
+
+<!-- ═══ TRADE-OFF MATRIX ══════════════════════════════════════════════════ -->
+
+<div class="section">
+  <div class="section-head"><h2>Trade-Off Matrix</h2></div>
+  <div class="matrix-wrap">
+    <table>
+      <thead>
+        <tr><th class="criteria-label"></th><th class="col-chosen">Vertical slices, 11 tasks ✅</th><th>Horizontal layers (store → indexer → tools → docker)</th></tr>
+      </thead>
+      <tbody>
+        <tr><td class="criteria-label">Each task verifiable on its own</td><td class="col-chosen cell-yes">✅ Yes — own AC + verify command</td><td class="cell-no">❌ No — layers untestable alone</td></tr>
+<tr><td class="criteria-label">Early end-to-end signal</td><td class="col-chosen cell-yes">✅ HUN-7 runs index → search → slice</td><td class="cell-no">❌ Only after all layers</td></tr>
+<tr><td class="criteria-label">Parallelism</td><td class="col-chosen cell-yes">✅ HUN-5‖HUN-6, then HUN-8/9/10/11</td><td class="cell-partial">⚠️ Strictly sequential</td></tr>
+<tr><td class="criteria-label">Risk front-loaded</td><td class="col-chosen cell-yes">✅ Spikes + High-risk binding/safety first (P0)</td><td class="cell-partial">⚠️ Safety lands late</td></tr>
+<tr><td class="criteria-label">Rework risk</td><td class="col-chosen cell-partial">⚠️ HUN-10 reshapes HUN-7 index_path to async</td><td class="cell-yes">✅ Low</td></tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- ═══ ASSUMPTIONS & OPEN QUESTIONS ════════════════════════════════════ -->
+
+<div class="section">
+  <div class="section-head"><h2>Assumptions &amp; Open Questions</h2></div>
+  <div class="item-list">
+    <ul>
+      <li><span class="tag tag-resolved">Resolved</span> Breakdown approved by user: "approve, go ahead".</li>
+<li><span class="tag tag-resolved">Resolved</span> Claude only; C0 haiku · C1 sonnet · C2 sonnet · C3 opus.</li>
+<li><span class="tag tag-resolved">Resolved</span> Tasks live in Linear project easy-context-mcp (HUN-5 … HUN-15).</li>
+<li><span class="tag tag-resolved">Resolved</span> get_stats with another project_id returns metadata-only stats (Supervisor decision, same visibility as list_indexes).</li>
+<li><span class="tag tag-assumption">Assumption</span> HUN-10: os.nice is process-wide on Linux — worker subprocess vs process-wide nice decided during implementation and recorded.</li>
+<li><span class="tag tag-deferred">Deferred</span> README step 5 (file watcher or tree-sitter Python) — created only after HUN-5…HUN-15 are Done.</li>
+<li><span class="tag tag-deferred">Deferred</span> Worktree registration wording in HUN-15 depends on HUN-5 spike 3 (${PWD} header).</li>
+    </ul>
+  </div>
+</div>
+
+<!-- ═══ FOOTER ═══════════════════════════════════════════════════════════ -->
+<!--
+  SESSION_REF : path to the source file, e.g. BRAINSTORMING_LOG.md or tasks/TASK_GUIDE_T001.md
+  TASK_ID     : e.g. T001 or —
+  TIMESTAMP   : ISO-8601 e.g. 2026-06-18T14:30:22
+-->
+<div class="footer">
+  Source: <code>PROJECT_KANBAN.md · tasks/TASK_GUIDE_HUN-5.md … HUN-15.md</code> &nbsp;·&nbsp; Task: — &nbsp;·&nbsp; Generated: 2026-10-20T14:36:11
+</div>
+
+</body>
+</html>

@@ -105,7 +105,17 @@ refresh. Embeddings: FastEmbed `all-MiniLM-L6-v2`, baked into the image. Decisio
 
 | ID | Title | Status | Assigned Agent | Complexity | Risk | Priority |
 |----|-------|--------|---------------|-----------|------|----------|
-| — | Generated at Stage 2 | — | — | — | — | — |
+| HUN-5 | Spikes: offline FastEmbed load, flock+WAL across container/host, ${PWD} in .mcp.json headers | Todo | Common-Infrastructure-Agent | C1 | Low | P0 |
+| HUN-6 | Skeleton: package, stdio + streamable-HTTP server, project binding, empty list_indexes | Todo | Backend-Implementer | C2 | High | P0 |
+| HUN-7 | First full path: index_path → search_semantic → get_slice with caps | Todo | Backend-Implementer | C3 | High | P0 |
+| HUN-8 | File hygiene: binaries, secrets, size, nested .git, hash skip, deletions | Todo | Backend-Implementer | C2 | High | P0 |
+| HUN-9 | Markdown heading chunks, stable slice ids, non-UTF-8 files | Todo | Backend-Implementer | C1 | Low | P1 |
+| HUN-10 | Background jobs: non-blocking index_path, progress/ETA, single writer, low priority | Todo | Backend-Implementer | C3 | Medium | P0 |
+| HUN-11 | Graph edges + get_related (1-hop) | Todo | Backend-Implementer | C2 | Medium | P1 |
+| HUN-12 | Stats: get_stats served counters, final list_indexes fields | Todo | Backend-Implementer | C1 | Low | P1 |
+| HUN-13 | Docker service: image with baked model, compose stdio + shared service, hardening | Todo | Common-Infrastructure-Agent | C2 | Medium | P0 |
+| HUN-14 | Timed refresh, orphan cleanup, worktree embed reuse | Todo | Backend-Implementer | C2 | Medium | P1 |
+| HUN-15 | Docs + end-to-end: README install, limits, SECURITY.md, LICENSE, Easy Kit policy | Todo | QA-Automation-Agent | C1 | Low | P1 |
 
 ---
 
@@ -116,4 +126,5 @@ Running log of key decisions, patterns, and lessons learned across tasks.
 | Date | Insight | Source Task |
 |------|---------|------------|
 | 2026-10-20 | Storage + embedder locked: one SQLite file/project, FastEmbed baked in (DDR-0001) | Stage 0.5 |
+| 2026-10-20 | Stage 2: 11 tasks HUN-5..HUN-15 in Linear project easy-context-mcp; README step 5 (watch / tree-sitter) deferred until all are Done | Stage 2 |
 | 2026-10-20 | Docker service convention copied from easy-verifier-mcp `scorer` (port 8767, identical-path RO workspace) | Phase 0 |
