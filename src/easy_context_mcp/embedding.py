@@ -4,6 +4,7 @@ import hashlib
 import json
 import sqlite3
 import urllib.error
+import urllib.parse
 import urllib.request
 from contextlib import closing
 from pathlib import Path
@@ -16,6 +17,7 @@ from . import config
 MODEL_ID = "sentence-transformers/all-MiniLM-L6-v2"
 BATCH = 64
 _SQL_VARS = 500  # stay under SQLite's host-parameter limit
+LOOPBACK_HOSTS = frozenset({"127.0.0.1", "::1", "localhost"})
 
 
 class Embedder(Protocol):
@@ -48,15 +50,14 @@ class RemoteEmbedder:
     """OpenAI-compatible `POST {base_url}/embeddings` (FR-012). The only runtime network use.
 
     `model_id` names the remote model and never equals the local one, so `check_model` refuses
-    to mix its vectors with local ones in one index. The API key is sent only in the header.
+    to mix its vectors with local ones in one index. The API key is sent only in the header,
+    and only over https, or over http to a loopback host (a local OpenAI-compatible server).
+    Error messages name the scheme and host only, never the key or the full URL.
     """
 
     def __init__(self, base_url: str, api_key: str, model: str) -> None:
-        if not base_url.startswith(("http://", "https://")):
-            raise ValueError(
-                f"EASY_CONTEXT_EMBED_BASE_URL must be an http(s) URL, got {base_url!r}"
-            )
         self.url = base_url.rstrip("/") + "/embeddings"
+        self.where = _check_base_url(base_url)
         self.model = model
         self.model_id = f"openai-compatible:{model}"
         self._api_key = api_key
@@ -69,15 +70,46 @@ class RemoteEmbedder:
                      "Content-Type": "application/json"},
             method="POST",
         )
+        # Every failure becomes a fixed message raised `from None`: exception text from the
+        # network or the response body could echo the key, so none of it is passed on.
         try:
             with urllib.request.urlopen(request, timeout=60) as response:
                 data = json.load(response)["data"]
         except urllib.error.HTTPError as exc:
-            raise RuntimeError(f"remote embedder {self.url} returned HTTP {exc.code}") from None
-        if len(data) != len(texts):
-            raise RuntimeError(f"remote embedder returned {len(data)} vectors for {len(texts)}")
-        data = sorted(data, key=lambda d: d["index"])
-        return np.asarray([d["embedding"] for d in data], dtype=np.float32)
+            raise RuntimeError(f"remote embedder {self.where} returned HTTP {exc.code}") from None
+        except (OSError, ValueError):  # URLError, timeouts, resets; bad JSON
+            raise RuntimeError(f"remote embedder {self.where} request failed") from None
+        except (KeyError, TypeError):
+            raise RuntimeError(f"remote embedder {self.where} sent no `data` list") from None
+        try:
+            if len(data) != len(texts):
+                raise RuntimeError(
+                    f"remote embedder {self.where} returned {len(data)} vectors for {len(texts)}"
+                )
+            data = sorted(data, key=lambda d: d["index"])
+            return np.asarray([d["embedding"] for d in data], dtype=np.float32)
+        except (KeyError, TypeError, ValueError):
+            raise RuntimeError(f"remote embedder {self.where} sent malformed vectors") from None
+
+
+def _check_base_url(base_url: str) -> str:
+    """'scheme://host[:port]' if the URL is https, or http to a loopback host; else ValueError."""
+    rule = (
+        "EASY_CONTEXT_EMBED_BASE_URL must be https://..., or http:// only to a loopback host "
+        "(127.0.0.1, ::1, localhost), with no user:password part"
+    )
+    try:
+        parts = urllib.parse.urlsplit(base_url)
+        host, port = parts.hostname, parts.port  # .port raises ValueError if malformed
+    except ValueError:
+        raise ValueError(f"{rule}; the value is not a valid URL") from None
+    scheme = parts.scheme.lower()
+    where = f"{scheme}://{host}" + (f":{port}" if port else "")
+    if not host or parts.username is not None or parts.password is not None:
+        raise ValueError(f"{rule}; got {scheme or 'no'} scheme and host {host or 'none'}")
+    if scheme == "https" or (scheme == "http" and host in LOOPBACK_HOSTS):
+        return where
+    raise ValueError(f"{rule}; got {where}")
 
 
 def make_embedder() -> Embedder:

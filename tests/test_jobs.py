@@ -480,11 +480,64 @@ def test_remote_embedder_calls_embeddings_endpoint(monkeypatch):
     assert "sk-secret" not in emb.model_id
 
 
-def test_remote_embedder_rejects_non_http_url(monkeypatch):
+@pytest.mark.parametrize("url", [
+    "https://api.example.test/v1", "http://127.0.0.1:8080/v1", "http://localhost:11434/v1",
+    "http://[::1]:8080/v1", "HTTPS://API.EXAMPLE.TEST/v1",
+])
+def test_remote_base_url_https_or_loopback_http_accepted(url):
+    assert RemoteEmbedder(url, "k", "m").url == url.rstrip("/") + "/embeddings"
+
+
+@pytest.mark.parametrize("url", [
+    "http://example.com/v1", "http://127.0.0.1.evil.com/v1", "http://localhost.evil.com/v1",
+    "http://10.0.0.5/v1", "file:///etc", "ftp://127.0.0.1/v1", "https:///v1", "not a url",
+])
+def test_remote_base_url_rejected(monkeypatch, url):
     monkeypatch.setenv("EASY_CONTEXT_EMBED_API_KEY", "k")
-    monkeypatch.setenv("EASY_CONTEXT_EMBED_BASE_URL", "file:///etc")
-    with pytest.raises(ValueError, match="http"):
+    monkeypatch.setenv("EASY_CONTEXT_EMBED_BASE_URL", url)
+    with pytest.raises(ValueError, match="EASY_CONTEXT_EMBED_BASE_URL"):
         make_embedder()
+
+
+KEY = "sk-SECRET-a1b2c3d4"
+
+
+def test_remote_base_url_with_credentials_rejected_without_echoing_them():
+    with pytest.raises(ValueError, match="EASY_CONTEXT_EMBED_BASE_URL") as info:
+        RemoteEmbedder(f"https://user:{KEY}@api.example.test/v1", KEY, "m")
+    assert KEY not in str(info.value)
+
+
+def _raise(exc):
+    def fake_urlopen(req, timeout):
+        raise exc
+    return fake_urlopen
+
+
+@pytest.mark.parametrize("make_exc, body", [
+    (lambda: embedding.urllib.error.HTTPError(
+        "https://api.example.test/v1/embeddings", 401, f"bad key {KEY}", {}, io.BytesIO(KEY.encode())
+    ), None),
+    (lambda: embedding.urllib.error.URLError(f"refused, key {KEY}"), None),
+    (lambda: OSError(f"reset by peer {KEY}"), None),
+    (None, f"not json {KEY}"),
+    (None, json.dumps({"error": KEY})),
+    (None, json.dumps({"data": [{"index": 0, "embedding": KEY}]})),
+])
+def test_remote_errors_never_contain_api_key(monkeypatch, make_exc, body):
+    import traceback
+
+    if make_exc:
+        monkeypatch.setattr(embedding.urllib.request, "urlopen", _raise(make_exc()))
+    else:
+        monkeypatch.setattr(embedding.urllib.request, "urlopen",
+                            lambda req, timeout: io.BytesIO(body.encode()))
+    emb = RemoteEmbedder("https://api.example.test/v1", KEY, "m")
+    with pytest.raises(RuntimeError) as info:
+        emb.embed(["a"])
+    shown = "".join(traceback.format_exception(info.value))
+    assert "remote embedder" in str(info.value)
+    assert KEY not in shown and KEY not in repr(info.value)
 
 
 def test_remote_and_local_vectors_never_mix(tmp_path, monkeypatch):
