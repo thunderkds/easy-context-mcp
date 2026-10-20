@@ -14,6 +14,11 @@
 **Why**: Model loaded once, background refresh survives sessions; matches easy-verifier-mcp `scorer` service convention.
 **Files**: PRD.md, compose.yaml, Dockerfile
 
+### 2026-10-20 — Binding walks up to the nearest .git root
+**Decision**: Every bound root (header, `root` arg, EASY_CONTEXT_ROOT, cwd) is realpath'd then walked up to the nearest ancestor with a `.git` file or dir; none found → keep the directory. Ceiling (workspace in service mode, never $HOME unless given) assigned to HUN-7/HUN-13.
+**Why**: HUN-5 spike 3 — Claude Code expands `${PWD}` to the launch directory, so a session started in a subfolder would otherwise get a second DB for the same repo.
+**Files**: src/easy_context_mcp/binding.py, docs/spikes/0001-stage1-spikes.md
+
 ## Infrastructure
 
 ### 2026-10-20 — easy-verifier confidence score on every task (advisory)

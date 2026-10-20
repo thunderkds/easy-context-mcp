@@ -25,3 +25,8 @@
 - [Run modes + project binding](decisions.md#architecture) — Docker service on 127.0.0.1:8767 (main) + stdio; `X-Easy-Context-Root` header per repo, `root` fallback; worktree = own project.
 - [easy-verifier confidence score](decisions.md#infrastructure) — Stage 4 add-on per task: score changes + task scope at 127.0.0.1:8766, attach to TASK_REVIEW + html-report; advisory.
 - [Push at end of every stage](decisions.md#infrastructure) — commit + `git push` to `github` whenever a pipeline stage completes (user rule).
+- [Binding walks up to .git root](decisions.md#architecture) — subfolder launch binds to its repo/worktree root; ceiling pending HUN-7/HUN-13.
+- [FastEmbed baking facts](learnings.md) — model id, FASTEMBED_CACHE_PATH, threads=, HF_HUB_OFFLINE=1, 87 MB.
+- [${PWD} header expansion](learnings.md) — Claude Code expands to launch dir; one .mcp.json serves all worktrees.
+- [easy-verifier gotchas](learnings.md) — harness-lock.json false-positive security hits; change_risk abstains >200 KB diff; task scope abstains for HUN IDs.
+- [Review tooling gotchas](learnings.md) — built-in security-review needs `origin`; shared active_task races; one path per Files-table row.
