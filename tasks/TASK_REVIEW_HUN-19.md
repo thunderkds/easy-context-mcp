@@ -14,15 +14,18 @@
 
 | Check | Result | Notes / output snippet |
 |-------|--------|------------------------|
-| **New test(s) cover Acceptance Criteria (file paths pasted)** | ☐ pass / ☐ fail | [test file path(s) — required before Done] |
-| Verification command run | ☐ pass / ☐ fail | [paste actual output] |
-| Negative cases hold | ☐ pass / ☐ fail | |
-| verify | ☐ pass / ☐ fail / ☐ N/A | [what was observed — must literally state "pass" or "fail" here too, e.g. "skill run, feature confirmed working — pass": the merge gate scans this Notes column for the word "pass", not just the Result column] |
-| Review scope bounded to the change's blast radius (affected set, not whole repo) | ☐ pass / ☐ fail | [what was reviewed vs. skipped, and why] |
-| Full smoke suite still green (no regression) | ☐ pass / ☐ fail | |
-| **UI: Visual regression (diff or verdict pasted)** | ☐ pass / ☐ fail / ☐ N/A | [screenshot path or LLM verdict — required for UI tasks, Hard-Stop Gate 6] |
-| **UI: Design-system compliance (tokens/colors/typography verified)** | ☐ pass / ☐ fail / ☐ N/A | [method used + output] |
-| **UI: Responsiveness at target viewports** | ☐ pass / ☐ fail / ☐ N/A | [viewports tested, any overflow findings] |
+| **New test(s) cover Acceptance Criteria (file paths pasted)** | ☑ pass | tests/test_compose.py (new, 4 tests): test_every_setting_is_passed_to_both_services, test_settings_list_is_derived_from_code, test_unset_host_variable_is_empty_not_a_default_change, test_header_comments_work_in_bash (AC1, AC2, AC4) |
+| Verification command run | ☑ pass | 2026-10-20T15:12:47Z (Supervisor re-run at 55a6ada) `FASTEMBED_CACHE_PATH=/tmp/spike1/cache uv run pytest -q` → 372 passed, 6 warnings in 30.10s; `uv run ruff check src tests` → All checks passed!; `EASY_CONTEXT_WORKSPACE=/var/tmp docker compose config --quiet` → ok (guide command fixed from /tmp: /tmp collides with the container tmpfs) |
+| Negative cases hold | ☑ pass | unset settings reach the container empty → code defaults (image config.refresh_seconds() 300 empty / 7 set); API key only a dummy value; live containers easy-context-mcp-service-1, easy-verifier, easy-ui untouched (docker ps before/after identical) |
+| verify | ☑ pass | Supervisor: `docker compose config --format json` with REFRESH_SECONDS=7 → service env 14 EASY_CONTEXT_* keys, stdio 13 (no PORT), REFRESH=7, unset MAX_SLICE='' — pass; compose header shows `export UID GID="$(id -g)"` and single-quoted `${PWD}` — pass. Agent: smoke_docker.sh on project easy-context-smoke port 18767 → ALL SMOKE CHECKS PASSED; bash -n on the commented commands ok |
+| Review scope bounded to the change's blast radius (affected set, not whole repo) | ☑ pass | compose.yaml, README Configuration 'Docker.' paragraph, tests/test_compose.py, pyproject.toml/uv.lock (dev group + pyyaml only) |
+| Full smoke suite still green (no regression) | ☑ pass | 372 passed |
+| Code review (Stage 4) | ☑ pass | P2 tests/test_compose.py imported PyYAML that was only a transitive dependency — fixed 55a6ada (`pyyaml>=6` in the dev group; uv.lock +2 lines, no version changes). Guide verification command used workspace /tmp, which collides with the service tmpfs — guide fixed (056932b). Startup reads complete (incl. general-agent-template.md) |
+| Security review (manual; built-in needs `origin`) | ☑ pass | no hardening, volume, port or network change; EASY_CONTEXT_EMBED_API_KEY passes through env only, never in files; compose comment warns that `docker compose config` prints it; stdio stays network_mode none (comment: no remote embedder there) |
+| easy-verifier confidence (advisory, PROJECT_SPEC Stage 4 Add-on) | overall: 61 · change_risk: abstained | overall 61 (rated: blast-radius 46, requirement-fidelity 67, security 30, test-strategy 100; 9 of 13 abstained). blast-radius 46 = README/compose/pyproject are churn hotspots (share 0.5); security 30 = known false positives. Report: reports/easy-verifier_HUN-19_20261020T221335.html |
+| **UI: Visual regression (diff or verdict pasted)** | ☐ N/A | infrastructure task, no UI |
+| **UI: Design-system compliance (tokens/colors/typography verified)** | ☐ N/A | infrastructure task, no UI |
+| **UI: Responsiveness at target viewports** | ☐ N/A | infrastructure task, no UI |
 
 ---
 
@@ -91,5 +94,4 @@ Tests: `uv run pytest -q` -> 372 passed; `uv run ruff check src tests` -> All ch
 
 **DELTA**: A user can now set any server setting (for example the refresh interval) from the host for the Docker service and the stdio container, and the compose comments run in bash as written.
 
-**WITNESS**: [who ran it and when — derived from `memory/event-trace/Txxx.jsonl`, never the
-implementing agent alone]
+**WITNESS**: Supervisor re-ran the suite (2026-10-20T15:12:47Z) and checked the rendered compose environment independently of the implementing agent; trace `memory/event-trace/HUN-19.jsonl`.
