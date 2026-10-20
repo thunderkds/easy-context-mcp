@@ -32,6 +32,6 @@
 **Files**: PROJECT_SPEC.md
 
 ### 2026-10-20 — Push at the end of every stage
-**Decision**: When a pipeline stage completes, commit and `git push` the current branch to remote `github`.
+**Decision**: SUPERSEDED 2026-10-20 — user: "continue your work, do not push". Commit and merge locally; no `git push` until the user lifts it. (Was: push at every stage end.)
 **Why**: User instruction ("keep when you complete the stage and push").
 **Files**: PROJECT_SPEC.md

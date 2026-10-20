@@ -59,7 +59,7 @@ Each FR must trace to at least one User Story.
 | FR-001b | While a job runs, `search_semantic` / `get_slice` / `get_related` must serve the last completed index state plus already-committed files, and mark responses `indexing: true`. On a project never indexed, they return an empty result with `indexing` status, not an error. | US-002, US-009 |
 | FR-001c | Timed refresh (user decision 2026-10-20, option B): in service mode, every already-indexed project is re-checked every `EASY_CONTEXT_REFRESH_SECONDS` (default 300; `0` disables). The check compares size + mtime first and reads/hashes only files whose size or mtime changed; only content-changed files are re-embedded. A project with a running job is skipped that cycle. Repos are never auto-discovered — only projects indexed via `index_path` are refreshed. | US-001, US-009 |
 | FR-002 | Discovery must respect `.gitignore`, skip binaries (extension + null-byte sniff), skip secret basenames (`.env`, `*.pem`, `credentials.json`, …) and files over `EASY_CONTEXT_MAX_FILE_BYTES` (default 512 KiB). | US-001, US-007 |
-| FR-003 | Markdown must be chunked by ATX headings; code by line windows with overlap. Slice ids must be stable (derived from path + range). | US-001, US-002 |
+| FR-003 | Markdown must be chunked by ATX headings; code in a supported language (FR-026) by symbol, other code by line windows with overlap. Slice ids must be stable (derived from path + range). | US-001, US-002 |
 | FR-004 | `search_semantic(query, k?, path_prefix?)` must return top-k hits, each with `id, path, start_line, end_line, score, preview, text, truncated`. | US-002 |
 | FR-005 | `get_slice(slice_id)` must return the full text of one slice with path/lines, subject to max slice chars with explicit `truncated: true`. | US-002 |
 | FR-006 | `get_related(slice_id or path, limit?)` must return 1-hop neighbours over edge types `import` (py/js/ts, regex/light parse), `link` (same-repo Markdown links), `parent`/`child` (heading hierarchy), `same_file` (limited degree). | US-003 |
@@ -82,6 +82,9 @@ Each FR must trace to at least one User Story.
 | FR-023 | **Worktree support.** A git worktree is its own project (own paths, own graph, own DB), so returned paths always point at the worktree's files. Embeddings are stored in a shared content-addressed cache (`~/.easy-context/embed-cache.sqlite`, keyed by chunk-text hash + model id; DDR-0001) used by all projects, so a new worktree re-embeds only chunks whose text differs from already-cached chunks. | US-001, US-010 |
 | FR-024 | **Nested worktree skip.** Discovery must skip any subdirectory containing its own `.git` entry (file or dir) — nested worktrees / nested repos are never indexed into the parent project. | US-007, US-010 |
 | FR-025 | **Orphan cleanup.** The timed refresh must delete the index of any project whose root no longer exists; embed-cache entries no project references may be garbage-collected. `list_indexes` marks missing roots before deletion. | US-005, US-010 |
+| FR-026 | **Code symbol slices** (user decision 2026-10-20, DDR-0002). For Python, JavaScript/TypeScript (incl. JSX/TSX) and Java/Kotlin, `index_path` must parse files with tree-sitter and make one slice per top-level function, class, method or interface, each carrying `symbol` (qualified name, e.g. `Inventory.add`), `kind`, and `start_byte`/`end_byte` into the file. Code between symbols (imports, module constants) becomes its own slice. A file that fails to parse falls back to line windows. Symbols longer than the slice cap are split into parts that keep the symbol name. | US-001, US-002 |
+| FR-027 | **Symbol-name match in search.** `search_semantic` must also score an exact or prefix match of the query against indexed symbol names (SQLite FTS5) and merge it with the vector score, so a query naming a symbol returns that symbol's slice first. Hits from code symbol slices add `symbol` and `kind`; the existing hit fields do not change. No new tool. | US-002 |
+| FR-028 | **Symbol graph edges.** `get_related` must also return 1-hop `calls` (function/method → callee resolved by name within the project), `called_by` (the reverse), `contains` (class → member) and `extends` (class/interface → base) neighbours for slices from FR-026. Name resolution is best-effort (same file first, then imported names, then a unique project-wide match); ambiguous names create no edge. | US-003 |
 
 ---
 
@@ -97,7 +100,7 @@ Each FR must trace to at least one User Story.
 | NFR-005 | HTTP service has no auth in this version, so it must not listen on non-loopback interfaces unless the user opts in explicitly. | Security |
 | NFR-006 | Concurrent clients against the shared service must not corrupt the index (single writer per project index). | Reliability |
 | NFR-007 | Python ≥ 3.10; packaged with `pyproject.toml` + `uv`; entry point `easy-context-mcp`. | Portability |
-| NFR-008 | README states limitations honestly: regex imports incomplete, best-effort chunk boundaries, no LSP, in-file hardcoded secrets not detected (SECURITY.md). | Honesty |
+| NFR-008 | README states limitations honestly: regex imports incomplete, best-effort chunk boundaries, name-matched (not type-resolved) call edges, supported symbol languages, no LSP, in-file hardcoded secrets not detected (SECURITY.md). | Honesty |
 
 ---
 
@@ -122,7 +125,9 @@ Each FR must trace to at least one User Story.
 - Copying another product's tool names, wire format, or source (clean-room; README §14).
 - A "pro" feature tier.
 - PyPI publication (`uvx easy-context-mcp`) — deferred to a later release step.
-- File watcher and tree-sitter chunking — optional, only if all other work is solid; never block ship.
+- File watcher — optional, only if all other work is solid; never block ship. (Tree-sitter symbol slices moved in scope: FR-026–FR-028, user decision 2026-10-20.)
+- New tools for symbols (outline, find-symbol, callers): symbol search and the call graph live inside the six existing tools.
+- Type-resolved call graphs (overloads, dynamic dispatch, reflection): name matching only.
 
 ---
 
@@ -140,6 +145,7 @@ Each FR must trace to at least one User Story.
 | 10 | OPEN — Stage 1 spike: does Claude Code expand `${PWD}` (or another var) in a committed `.mcp.json` header, so worktrees inheriting the file bind to their own path? If not, policy text tells the agent to pass `root`. | Supervisor | Stage 1 |
 | 8 | DECISION 2026-10-20: indexing time measured, not gated (NFR-001); background jobs (FR-001a/b); timed refresh option B (FR-001c); host-lag limits (NFR-001a). | thunderkds | resolved |
 | 7 | DECISION (user delegated "choose the best", 2026-10-20): hybrid run modes — stdio and Docker HTTP service from one codebase; Docker shared service is the recommended mode. Convention copied from the Easy family (`../easy-verifier-mcp/compose.yaml` `scorer` service, `../easy-ui-mcp/docker-compose.yml`): streamable HTTP, host network, loopback only, workspace mounted read-only at identical host path. | thunderkds | resolved |
+| 11 | DECISION 2026-10-20 (user chose option 1 of 3): code search by AST symbols + symbol/call graph, inside the six existing tools (no new tools); first languages Python, JS/TS, Java/Kotlin (FR-026–FR-028, DDR-0002). Ideas from codegraph / jCodeMunch only — clean-room, no code, tool names or schemas copied. | thunderkds | resolved |
 
 ---
 

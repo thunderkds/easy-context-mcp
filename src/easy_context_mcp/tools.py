@@ -7,7 +7,7 @@ from typing import Any
 
 from . import config
 from .binding import Project
-from .chunking import line_windows, slice_id
+from .chunking import chunk_file, slice_id
 from .discovery import (
     Entry,
     has_null_byte,
@@ -74,15 +74,15 @@ def _visit(
         tally.unchanged += 1
         tally.slices += old[3]
         return
-    windows = line_windows(
-        data.decode("utf-8", errors="replace"), config.chunk_lines(), config.chunk_overlap()
+    windows = chunk_file(
+        rel, data.decode("utf-8", errors="replace"), config.chunk_lines(), config.chunk_overlap()
     )
     vectors, hashes, n_new = embed_cached(
         [w[2] for w in windows], embedder, config.embed_cache_file()
     )
     rows = [
-        (slice_id(rel, s, e), s, e, text, h, v.tobytes())
-        for (s, e, text), h, v in zip(windows, hashes, vectors)
+        (slice_id(rel, s, e), s, e, text, h, v.tobytes(), hp, hl)
+        for (s, e, text, hp, hl), h, v in zip(windows, hashes, vectors)
     ]
     store.replace_file(rel, sha, entry.size, entry.mtime_ns, embedder.model_id, rows)
     tally.embedded_files += 1
