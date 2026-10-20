@@ -20,7 +20,7 @@ dependencies = [
 easy-context-mcp = "easy_context_mcp.server:main"
 
 [dependency-groups]
-dev = ["pytest>=8", "ruff>=0.5", "anyio>=4"]
+dev = ["pytest>=8", "ruff>=0.5", "anyio>=4", "pyyaml>=6"]
 
 [build-system]
 requires = ["hatchling"]

@@ -426,7 +426,7 @@ All settings are environment variables. The server reads them at call time. Set 
 
 A remote embedder and the local model produce different vectors. An index keeps the model it was built with, and the server refuses to mix them.
 
-**Docker.** `compose.yaml` passes only `EASY_CONTEXT_WORKSPACE`, `EASY_CONTEXT_HOME`, `EASY_CONTEXT_THREADS` and (for the service) `EASY_CONTEXT_PORT` into the container. To set another variable for the container, add it under `environment:` in `compose.yaml`. The service is limited to 2 CPUs and 2 GB memory.
+**Docker.** `compose.yaml` passes every variable in the table above (except `EASY_CONTEXT_ROOT`) from your shell into the container, for both the service and the stdio container. For example, `EASY_CONTEXT_REFRESH_SECONDS=60 docker compose up -d service`. A variable that you do not set reaches the container empty, and the server then uses its default. The stdio container has no network, so a remote embedder (`EASY_CONTEXT_EMBED_*`) works only in the service. `docker compose config` prints these values, including `EASY_CONTEXT_EMBED_API_KEY`, so do not paste its output anywhere. The service is limited to 2 CPUs and 2 GB memory.
 
 ## Timed refresh and cleanup (service mode)
 

@@ -1,13 +1,22 @@
 # Easy Context MCP, Docker packaging (FR-017-FR-019, NFR-001a, NFR-005).
 #
-# Shared service for every repo on the machine (Linux):
-#   EASY_CONTEXT_WORKSPACE=/abs/parent/of/repos UID=$(id -u) GID=$(id -g) \
-#     docker compose up -d service
+# Shared service for every repo on the machine (Linux; UID is readonly in bash, so export it):
+#   export EASY_CONTEXT_WORKSPACE=/abs/parent/of/repos
+#   export UID GID="$(id -g)"
+#   docker compose up -d service
 #   claude mcp add --transport http easy-context http://127.0.0.1:8767/mcp \
-#     --header "X-Easy-Context-Root: ${PWD}"
+#     --header 'X-Easy-Context-Root: ${PWD}'
+# Keep the single quotes: Claude Code expands ${PWD} per repo; the shell must not.
 # One-shot stdio server (no network):
-#   EASY_CONTEXT_WORKSPACE=/abs/parent/of/repos UID=$(id -u) GID=$(id -g) \
-#     docker compose run --rm -w "$PWD" stdio
+#   export EASY_CONTEXT_WORKSPACE=/abs/parent/of/repos
+#   export UID GID="$(id -g)"
+#   docker compose run --rm -w "$PWD" stdio
+#
+# Every server setting (EASY_CONTEXT_REFRESH_SECONDS, _DEFAULT_K, _MAX_*, _CHUNK_*,
+# _EMBED_*) passes through from the host environment. Unset means empty, and the server
+# treats empty as "use the default". The stdio service has network_mode none, so a remote
+# embedder (_EMBED_*) works only in the service. `docker compose config` prints these
+# values, including EASY_CONTEXT_EMBED_API_KEY: never paste its output anywhere.
 #
 # The workspace is mounted read-only at the identical host path, so every path in a
 # request or a response is a host path. The index dir (default ~/.easy-context) is a
@@ -39,6 +48,16 @@ x-common: &common
     EASY_CONTEXT_WORKSPACE: ${EASY_CONTEXT_WORKSPACE:-/EASY_CONTEXT_WORKSPACE-must-be-set}
     EASY_CONTEXT_HOME: ${EASY_CONTEXT_HOME:-${HOME}/.easy-context}
     EASY_CONTEXT_THREADS: ${EASY_CONTEXT_THREADS:-2}
+    EASY_CONTEXT_REFRESH_SECONDS: ${EASY_CONTEXT_REFRESH_SECONDS:-}
+    EASY_CONTEXT_DEFAULT_K: ${EASY_CONTEXT_DEFAULT_K:-}
+    EASY_CONTEXT_MAX_SLICE_CHARS: ${EASY_CONTEXT_MAX_SLICE_CHARS:-}
+    EASY_CONTEXT_MAX_RESPONSE_CHARS: ${EASY_CONTEXT_MAX_RESPONSE_CHARS:-}
+    EASY_CONTEXT_MAX_FILE_BYTES: ${EASY_CONTEXT_MAX_FILE_BYTES:-}
+    EASY_CONTEXT_CHUNK_LINES: ${EASY_CONTEXT_CHUNK_LINES:-}
+    EASY_CONTEXT_CHUNK_OVERLAP: ${EASY_CONTEXT_CHUNK_OVERLAP:-}
+    EASY_CONTEXT_EMBED_BASE_URL: ${EASY_CONTEXT_EMBED_BASE_URL:-}
+    EASY_CONTEXT_EMBED_API_KEY: ${EASY_CONTEXT_EMBED_API_KEY:-}
+    EASY_CONTEXT_EMBED_MODEL: ${EASY_CONTEXT_EMBED_MODEL:-}
   volumes: &common-volumes
     # Unset EASY_CONTEXT_WORKSPACE fails `up`/`run` with a mount error naming it.
     - type: bind

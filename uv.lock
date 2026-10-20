@@ -451,6 +451,7 @@ dependencies = [
 dev = [
     { name = "anyio" },
     { name = "pytest" },
+    { name = "pyyaml" },
     { name = "ruff" },
 ]
 
@@ -472,6 +473,7 @@ requires-dist = [
 dev = [
     { name = "anyio", specifier = ">=4" },
     { name = "pytest", specifier = ">=8" },
+    { name = "pyyaml", specifier = ">=6" },
     { name = "ruff", specifier = ">=0.5" },
 ]
 
