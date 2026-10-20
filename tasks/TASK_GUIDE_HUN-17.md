@@ -75,6 +75,7 @@ User (2026-10-20): a call/dependency/symbol graph (as in codegraph) works better
 | 5 | A class slice has `contains` edges to its method slices; `class A(B)` / `extends B` / `implements I` / Kotlin `: B()` create `extends` edges when B resolves | FR-028 |
 | 6 | Edges are 1-hop, capped by `limit`, carry path + start_line + end_line, and are removed with their source file on re-index | FR-006, FR-015 |
 | 7 | On the fixture, 5 known caller→callee pairs appear in `get_related`; recorded in the Demonstration | FR-028 |
+| 8 | For a `slice_id` query, symbol edges rank first (`calls`, `called_by`, `contains`, `extends`), then the HUN-11 slice edges, then file-level `import`/`link`: in a file with more imports than `limit`, a function's callees and callers still appear (HUN-11 review: today imports crowd them out) | FR-028, FR-006 |
 
 ---
 
@@ -113,6 +114,8 @@ N/A — pure backend / infrastructure task, no UI component. All three UI Eviden
 
 * Call edges from module-level (gap slice) code
 * Resolution through re-exports, aliases (`import x as y` beyond one level), star imports
+
+HUN-11 facts (merged, schema v3): `edges(src_path, dst_path, edge_type, src_slice, dst_slice)`; slice-level rows carry both slice ids and are read by `store.related` via `src_slice`; `replace_file` deletes a file's rows by `src_path`, `remove_files` also by `dst_path`. Cross-file symbol edges need `dst_path` = the callee's file. Because callers in unchanged files are not re-resolved when a callee file changes, resolve calls in a pass over all project symbols at the end of `index_path` (rewrite only the symbol-edge rows), so slice ids stay current. Ranking lives in `tools.get_related` (`EDGE_TYPES` order).
 
 During the symbol parse, collect call-site names per symbol slice. After all files of a job are chunked, resolve names to symbol slices (same file → imported names → unique project-wide) and write edges. `called_by` is the reverse query of `calls`, not a second stored row, unless the HUN-11 schema needs it.
 

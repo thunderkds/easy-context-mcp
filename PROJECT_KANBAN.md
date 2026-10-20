@@ -11,9 +11,9 @@
 ### Todo
 - [ ] **HUN-14** — Timed refresh, orphan cleanup, worktree embed reuse | Backend-Implementer | C2 | Risk: Medium | P1 | @hungnh1110 | Guide: `tasks/TASK_GUIDE_HUN-14.md`
 - [ ] **HUN-15** — Docs + end-to-end: README install, limits, SECURITY.md, LICENSE, Easy Kit policy | QA-Automation-Agent | C1 | Risk: Low | P1 | @hungnh1110 | Guide: `tasks/TASK_GUIDE_HUN-15.md`
-- [ ] **HUN-17** — Symbol graph edges (calls, called_by, contains, extends) in get_related | Backend-Implementer | C2 | Risk: Medium | P1 | @hungnh1110 | Guide: `tasks/TASK_GUIDE_HUN-17.md`
 
 ### In Progress
+- [ ] **HUN-17** — Symbol graph edges (calls, called_by, contains, extends) in get_related | Backend-Implementer | C2 | Risk: Medium | P1 | @hungnh1110 | Guide: `tasks/TASK_GUIDE_HUN-17.md`
 
 ### Ready for Review
 
