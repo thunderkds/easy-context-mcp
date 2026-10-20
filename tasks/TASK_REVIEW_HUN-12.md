@@ -14,16 +14,16 @@
 
 | Check | Result | Notes / output snippet |
 |-------|--------|------------------------|
-| **New test(s) cover Acceptance Criteria (file paths pasted)** | ☐ pass / ☐ fail | [test file path(s) — required before Done] |
-| Verification command run | ☐ pass / ☐ fail | [paste actual output] |
-| Negative cases hold | ☐ pass / ☐ fail | |
-| verify | ☐ pass / ☐ fail / ☐ N/A | [what was observed — must literally state "pass" or "fail" here too, e.g. "skill run, feature confirmed working — pass": the merge gate scans this Notes column for the word "pass", not just the Result column] |
-| Review scope bounded to the change's blast radius (affected set, not whole repo) | ☐ pass / ☐ fail | [what was reviewed vs. skipped, and why] |
-| Full smoke suite still green (no regression) | ☐ pass / ☐ fail | |
-| easy-verifier confidence (advisory, PROJECT_SPEC Stage 4 Add-on) | overall: — · change_risk: — | [filled by Supervisor] |
-| **UI: Visual regression (diff or verdict pasted)** | ☐ pass / ☐ fail / ☐ N/A | [screenshot path or LLM verdict — required for UI tasks, Hard-Stop Gate 6] |
-| **UI: Design-system compliance (tokens/colors/typography verified)** | ☐ pass / ☐ fail / ☐ N/A | [method used + output] |
-| **UI: Responsiveness at target viewports** | ☐ pass / ☐ fail / ☐ N/A | [viewports tested, any overflow findings] |
+| **New test(s) cover Acceptance Criteria (file paths pasted)** | ☑ pass | tests/test_stats.py (16 tests): AC1 served counters (+3500 arithmetic, cumulative + since start, concurrency), AC2 get_stats own/other project metadata-only, AC3 list_indexes root/counts/last_index_at/status/root_exists, AC4 no network; unreadable index → error; counter write never blocks a read or waits on write.lock |
+| Verification command run | ☑ pass | 2026-10-20T10:12:26Z `uv run pytest -q` → 198 passed, 6 warnings in 25.84s; `uv run ruff check src tests` → All checks passed! (Supervisor re-run) |
+| Negative cases hold | ☑ pass | unknown project_id → ValueError; stats.sqlite exclusively locked → no block, delta not lost; corrupt index → error, 0 counts |
+| verify | ☑ pass | Supervisor reviewed agent AFTER capture (real sample skipped/binary 1, chars_served 3192, slices_served 5) against the test suite re-run — pass |
+| Review scope bounded to the change's blast radius (affected set, not whole repo) | ☑ pass | store.py counters, tools.py exit points, jobs.py stats/_entry/_read_strict, server.py get_stats, tests/test_stats.py |
+| Full smoke suite still green (no regression) | ☑ pass | 198 passed incl. HUN-6..HUN-10 suites |
+| easy-verifier confidence (advisory, PROJECT_SPEC Stage 4 Add-on) | overall: 55 · change_risk: 100 | overall 55 (rated: architecture 100, requirement-fidelity 67, code-quality 67, security 18, test-strategy 65, blast-radius 65, reliability 0; 6 of 13 abstained; diff base hun-10-jobs) · change_risk: 100. Reliability 0 = swallowed_errors (add_served/read_served return False/(0,0) on sqlite3.Error — the intended never-block design, delta kept in memory) + queries_in_loops (500-id batches). Security 18 = known false positives (harness-lock.json sha256; SQL built from the constant JOB_COLUMNS tuple / '?' placeholders). Report: reports/easy-verifier_HUN-12_20261020T171353.html |
+| **UI: Visual regression (diff or verdict pasted)** | ☐ N/A | pure backend task, no UI |
+| **UI: Design-system compliance (tokens/colors/typography verified)** | ☐ N/A | pure backend task, no UI |
+| **UI: Responsiveness at target viewports** | ☐ N/A | pure backend task, no UI |
 
 ---
 
@@ -41,7 +41,9 @@
 ToolError Error executing tool get_stats: not_implemented: get_stats is not implemented yet
 ```
 
-**AFTER**: 2026-10-20T10:11:46Z, same FastMCP layer, after indexing a fixture repo (one binary file) and one `search_semantic`:
+**AFTER**:
+
+2026-10-20T10:11:46Z, same FastMCP layer, after indexing a fixture repo (one binary file) and one `search_semantic`:
 
 ```
 2026-10-20T10:11:46.013518+00:00 call get_stats
@@ -51,7 +53,6 @@ ToolError Error executing tool get_stats: not_implemented: get_stats is not impl
  "chars_served": 3192, "slices_served": 5, "chars_served_since_start": 3192, "slices_served_since_start": 5}
 ```
 
-**DELTA**: A user can now call `get_stats` to see index counts, skipped files by reason and how much context was served, and `list_indexes` shows whether each root still exists.
+**DELTA**: An agent or user can now see how much context the server has handed out per project, what the last index run skipped and why, and which indexed roots no longer exist.
 
-**WITNESS**: [who ran it and when — derived from `memory/event-trace/Txxx.jsonl`, never the
-implementing agent alone]
+**WITNESS**: Supervisor (claude-opus-5-5): test re-run 2026-10-20T10:12:26Z; trace memory/event-trace/HUN-12.jsonl.
