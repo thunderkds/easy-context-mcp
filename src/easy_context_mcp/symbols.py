@@ -125,29 +125,66 @@ def _name(node, src: bytes) -> str | None:
     return _text(src, name)
 
 
+def _unwrap(child, lang: _Lang):
+    """The declaration node inside a decorator / `export` wrapper (or `child` itself); may be None."""
+    if child.type not in lang.wrappers:
+        return child
+    return (child.child_by_field_name("definition") or child.child_by_field_name("declaration")
+            or child.child_by_field_name("value"))
+
+
+def _variable_function(node, src: bytes):
+    """(node, name, "function") for `const f = () => ...` / `var g = function () {}`, else None."""
+    for decl in node.named_children:
+        value = decl.child_by_field_name("value")
+        if value is not None and value.type in _JS_FUNCTION_VALUES:
+            return node, _text(src, decl.child_by_field_name("name")), "function"
+    return None
+
+
 def _declaration(child, lang: _Lang, src: bytes, top: bool):
     """(node, name, kind) for a declaration child, or None. Unwraps decorators and `export`."""
-    node = child
-    if child.type in lang.wrappers:
-        node = (child.child_by_field_name("definition") or child.child_by_field_name("declaration")
-                or child.child_by_field_name("value"))
-        if node is None:
-            return None
-    if top and node.type in ("lexical_declaration", "variable_declaration"):
-        for decl in node.named_children:  # const f = () => ..., var g = function () {}
-            value = decl.child_by_field_name("value")
-            if value is not None and value.type in _JS_FUNCTION_VALUES:
-                return node, _text(src, decl.child_by_field_name("name")), "function"
+    node = _unwrap(child, lang)
+    if node is None:
         return None
+    if top and node.type in ("lexical_declaration", "variable_declaration"):
+        return _variable_function(node, src)
     kind = lang.defs.get(node.type)
     if kind is None:
         return None
     if node.type == "class_declaration" and any(c.type == "interface" for c in node.children):
         kind = "interface"  # Kotlin `interface I` parses as class_declaration
     name = _name(node, src)
-    if name is None:
-        name = "default" if child.type == "export_statement" else None
+    if name is None and child.type == "export_statement":
+        name = "default"
     return (node, name, kind) if name else None
+
+
+def _first_row(child, lang: _Lang, src: bytes, starts: list[int]) -> int:
+    """First row of `child`, extended up over the comment block directly above it."""
+    first = child.start_point.row
+    prev = child.prev_named_sibling
+    while (prev is not None and prev.type in lang.comments and prev.end_point.row >= first - 1
+           and not src[starts[prev.start_point.row] : prev.start_byte].strip()):
+        first = prev.start_point.row  # attach the comment block directly above
+        prev = prev.prev_named_sibling
+    return first
+
+
+def _last_row(child, first: int) -> int:
+    last = child.end_point.row
+    if child.end_point.column == 0 and last > first:
+        last -= 1
+    return last
+
+
+def _collect_members(node, lang: _Lang, src: bytes, starts: list[int], qualified: str,
+                     out: list[_Sym]) -> None:
+    """Collect the members of the container just appended to `out` (its body, if it has one)."""
+    body = node.child_by_field_name("body") or next(
+        (c for c in node.named_children if c.type in lang.bodies), None)
+    if body is not None:
+        _collect(body, lang, src, starts, qualified + ".", len(out) - 1, out)
 
 
 def _collect(parent_node, lang: _Lang, src: bytes, starts: list[int], prefix: str,
@@ -162,22 +199,11 @@ def _collect(parent_node, lang: _Lang, src: bytes, starts: list[int], prefix: st
         node, name, kind = found
         if parent is not None and kind == "function":
             kind = "method"
-        first = child.start_point.row
-        prev = child.prev_named_sibling
-        while (prev is not None and prev.type in lang.comments and prev.end_point.row >= first - 1
-               and not src[starts[prev.start_point.row] : prev.start_byte].strip()):
-            first = prev.start_point.row  # attach the comment block directly above
-            prev = prev.prev_named_sibling
-        last = child.end_point.row
-        if child.end_point.column == 0 and last > first:
-            last -= 1
+        first = _first_row(child, lang, src, starts)
         qualified = prefix + name
-        out.append(_Sym(first, last, qualified, kind, parent, node))
+        out.append(_Sym(first, _last_row(child, first), qualified, kind, parent, node))
         if kind in _CONTAINERS:
-            body = node.child_by_field_name("body") or next(
-                (c for c in node.named_children if c.type in lang.bodies), None)
-            if body is not None:
-                _collect(body, lang, src, starts, qualified + ".", len(out) - 1, out)
+            _collect_members(node, lang, src, starts, qualified, out)
 
 
 _NAMES = {"identifier", "type_identifier", "property_identifier"}
@@ -314,6 +340,19 @@ def _refs(syms: list[_Sym], i: int, skip: set, src: bytes) -> str | None:
     return json.dumps(refs, separators=(",", ":")) if refs else None
 
 
+def _cut_line(src: bytes, row: int, pos: int, end: int, cap: int) -> list[tuple[int, int, int, int]]:
+    """Cut one over-long line into byte ranges of <= cap bytes, each on a UTF-8 boundary."""
+    parts = []
+    while pos < end:
+        cut = min(pos + cap, end)
+        while pos < cut < end and src[cut] & 0xC0 == 0x80:
+            cut -= 1
+        cut = cut if cut > pos else min(pos + cap, end)
+        parts.append((row, row, pos, cut))
+        pos = cut
+    return parts
+
+
 def _split(src: bytes, starts: list[int], ends: list[int], first: int, last: int,
            cap: int) -> list[tuple[int, int, int, int]]:
     """Cut rows first..last into (first_row, last_row, start_byte, end_byte) parts of <= cap chars.
@@ -333,14 +372,7 @@ def _split(src: bytes, starts: list[int], ends: list[int], first: int, last: int
             parts.append((group, row - 1, starts[group], ends[row - 1]))
             group = None
         if group is None and chars(starts[row], ends[row]) > cap:
-            pos = starts[row]
-            while pos < ends[row]:
-                cut = min(pos + cap, ends[row])
-                while pos < cut < ends[row] and src[cut] & 0xC0 == 0x80:
-                    cut -= 1
-                cut = cut if cut > pos else min(pos + cap, ends[row])
-                parts.append((row, row, pos, cut))
-                pos = cut
+            parts += _cut_line(src, row, starts[row], ends[row], cap)
             continue
         if group is None:
             group = row

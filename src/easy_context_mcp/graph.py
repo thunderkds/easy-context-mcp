@@ -232,22 +232,29 @@ class _Resolver:
             parts.pop()
         return []
 
+    def _candidates(self, name: str, kinds: tuple[str, ...] | None) -> list:
+        return [c for c in self.by_tail.get(name, []) if kinds is None or c[3] in kinds]
+
+    def _scoped_pools(self, path: str, cands: list, receiver: str | None) -> list[list]:
+        """Candidates narrowed to the same file, then the imported files, then all."""
+        same = [c for c in cands if c[1] == path]
+        if receiver is None and len(same) > 1:
+            same = [c for c in same if "." not in c[2]] or same
+        imported = self.imports.get(path, ())
+        return [same, [c for c in cands if c[1] in imported], cands]
+
     def resolve(self, src, name: str, receiver: str | None, kinds: tuple[str, ...] | None):
         _, path, qualified, _, _ = src
         if kinds is None and _is_recursion(qualified, name, receiver):
             return None
         if receiver not in (None, "self"):
             return self.member_of(path, name, receiver)
-        cands = [c for c in self.by_tail.get(name, []) if kinds is None or c[3] in kinds]
+        cands = self._candidates(name, kinds)
         if receiver == "self" or path.endswith(_IMPLICIT_THIS):
             hit = self._enclosing_hit(path, qualified, name, cands)
             if hit:
                 return self._only(hit)
-        same = [c for c in cands if c[1] == path]
-        if receiver is None and len(same) > 1:
-            same = [c for c in same if "." not in c[2]] or same
-        imported = self.imports.get(path, ())
-        return self._first_pool([same, [c for c in cands if c[1] in imported], cands])
+        return self._first_pool(self._scoped_pools(path, cands, receiver))
 
     def edges(self, src) -> set[tuple[str, str, str, str, str]]:
         """`contains`, `calls` and `extends` edges whose source is the symbol `src`."""
