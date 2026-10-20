@@ -9,7 +9,8 @@ from mcp.server.fastmcp import Context, FastMCP
 
 from . import config, tools
 from .binding import Project, resolve_project
-from .embedding import Embedder, LocalEmbedder
+from .embedding import Embedder, make_embedder
+from .jobs import JobRunner
 
 TOOL_NAMES = (
     "index_path",
@@ -33,7 +34,10 @@ def _bind(ctx: Context, arg_root: str | None, service_mode: bool) -> Project:
 def create_app(
     *, service_mode: bool = False, port: int | None = None, embedder: Embedder | None = None
 ) -> FastMCP:
-    embedder = embedder or LocalEmbedder()
+    # Jobs get their own embedder instance: the local model then loads inside the niced job
+    # thread, so its ONNX threads run at nice 10 while queries use the default-priority one.
+    runner = JobRunner(embedder or make_embedder())
+    embedder = embedder or make_embedder()
     app = FastMCP(
         "easy-context",
         host=config.HOST,
@@ -49,10 +53,13 @@ def create_app(
     ) -> dict[str, Any]:
         """Index a directory of the bound project (relative to its root, default the root).
 
-        Walks files (respecting .gitignore), chunks them into line windows, embeds them locally
-        and stores slices in this project's index. Runs to completion before returning.
+        Starts a background job and returns at once with `job_id`, `status` (queued/running/
+        done/failed), `files_total` and `estimated_seconds`. A call while the project's job is
+        active returns that job. Follow progress with `list_indexes`. Searches keep working
+        meanwhile and are marked `indexing: true`. Unchanged files are skipped unless `force`.
         """
-        return tools.index_path(_bind(ctx, root, service_mode), path, force, embedder=embedder)
+        project = _bind(ctx, root, service_mode)
+        return {**tools._envelope(project), **runner.submit(project, path, force)}
 
     @app.tool()
     def search_semantic(
@@ -66,14 +73,19 @@ def create_app(
 
         `path_prefix` (relative to the root) keeps only hits under that directory or file.
         Hits that do not fit the response size cap are left out and counted in `dropped`.
+        k is capped at 100. `indexing: true` means a job is running: results come from the
+        files committed so far.
         """
         project = _bind(ctx, root, service_mode)
-        return tools.search_semantic(project, query, k, path_prefix, embedder=embedder)
+        return tools.search_semantic(
+            project, query, k, path_prefix, embedder=embedder, indexing=runner.indexing(project)
+        )
 
     @app.tool()
     def get_slice(ctx: Context, slice_id: str, root: str | None = None) -> dict[str, Any]:
         """Fetch one slice's text by id, with path + line range (`truncated` if capped)."""
-        return tools.get_slice(_bind(ctx, root, service_mode), slice_id)
+        project = _bind(ctx, root, service_mode)
+        return tools.get_slice(project, slice_id, indexing=runner.indexing(project))
 
     @app.tool()
     def get_related(ctx: Context, slice_id: str, root: str | None = None) -> dict[str, Any]:
@@ -83,9 +95,13 @@ def create_app(
 
     @app.tool()
     def list_indexes(ctx: Context, root: str | None = None) -> dict[str, Any]:
-        """List the bound project's indexes."""
+        """List every index on this machine with its job progress.
+
+        Each entry: project_id, root, files, slices, last_index_at, indexing, status, job_id,
+        files_done, files_total, eta_seconds, last_error.
+        """
         project = _bind(ctx, root, service_mode)
-        return {"project_id": project.project_id, "root": project.root, "indexes": []}
+        return {**tools._envelope(project), "indexes": runner.list_indexes(project)}
 
     @app.tool()
     def get_stats(ctx: Context, root: str | None = None) -> dict[str, Any]:

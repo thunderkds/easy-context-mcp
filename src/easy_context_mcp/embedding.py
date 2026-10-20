@@ -1,7 +1,10 @@
 """Embedders and the shared embed cache keyed by (chunk_hash, model_id) (FR-011, FR-023)."""
 
 import hashlib
+import json
 import sqlite3
+import urllib.error
+import urllib.request
 from contextlib import closing
 from pathlib import Path
 from typing import Protocol
@@ -39,6 +42,50 @@ class LocalEmbedder:
                 MODEL_ID, cache_dir=str(config.model_cache_dir()), threads=config.threads()
             )
         return np.asarray(list(self._model.embed(texts)), dtype=np.float32)
+
+
+class RemoteEmbedder:
+    """OpenAI-compatible `POST {base_url}/embeddings` (FR-012). The only runtime network use.
+
+    `model_id` names the remote model and never equals the local one, so `check_model` refuses
+    to mix its vectors with local ones in one index. The API key is sent only in the header.
+    """
+
+    def __init__(self, base_url: str, api_key: str, model: str) -> None:
+        if not base_url.startswith(("http://", "https://")):
+            raise ValueError(
+                f"EASY_CONTEXT_EMBED_BASE_URL must be an http(s) URL, got {base_url!r}"
+            )
+        self.url = base_url.rstrip("/") + "/embeddings"
+        self.model = model
+        self.model_id = f"openai-compatible:{model}"
+        self._api_key = api_key
+
+    def embed(self, texts: list[str]) -> np.ndarray:
+        request = urllib.request.Request(
+            self.url,
+            data=json.dumps({"model": self.model, "input": texts}).encode(),
+            headers={"Authorization": f"Bearer {self._api_key}",
+                     "Content-Type": "application/json"},
+            method="POST",
+        )
+        try:
+            with urllib.request.urlopen(request, timeout=60) as response:
+                data = json.load(response)["data"]
+        except urllib.error.HTTPError as exc:
+            raise RuntimeError(f"remote embedder {self.url} returned HTTP {exc.code}") from None
+        if len(data) != len(texts):
+            raise RuntimeError(f"remote embedder returned {len(data)} vectors for {len(texts)}")
+        data = sorted(data, key=lambda d: d["index"])
+        return np.asarray([d["embedding"] for d in data], dtype=np.float32)
+
+
+def make_embedder() -> Embedder:
+    """Remote only when BOTH EASY_CONTEXT_EMBED_API_KEY and _BASE_URL are set; else local."""
+    key, url = config.embed_api_key(), config.embed_base_url()
+    if key and url:
+        return RemoteEmbedder(url, key, config.embed_model())
+    return LocalEmbedder()
 
 
 def chunk_hash(text: str) -> str:

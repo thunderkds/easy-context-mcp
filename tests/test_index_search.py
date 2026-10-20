@@ -446,14 +446,16 @@ def test_server_tools_end_to_end(tmp_path, monkeypatch):
             return structured
 
         idx = await call("index_path", {"path": ".", "force": False})
+        while (await call("list_indexes", {}))["indexes"][0]["status"] != "done":
+            await anyio.sleep(0.05)  # index_path returns at once; the job runs in background
         res = await call("search_semantic", {"query": QUERY, "k": 3, "path_prefix": None})
         sl = await call("get_slice", {"slice_id": res["hits"][0]["id"]})
         return idx, res, sl
 
     idx, res, sl = anyio.run(run)
-    assert idx["status"] == "done" and idx["root"] == os.path.realpath(root)
+    assert idx["status"] in ("queued", "running") and idx["root"] == os.path.realpath(root)
     assert res["hits"] and sl["id"] == res["hits"][0]["id"]
-    assert len(wire[1]) <= 1500  # the cap holds on the text FastMCP actually sends
+    assert len(wire[-2]) <= 1500  # the cap holds on the text FastMCP actually sends
 
 
 # --- Real model (slow) --------------------------------------------------------------------------------

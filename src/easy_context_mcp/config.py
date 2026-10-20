@@ -88,3 +88,16 @@ def index_file(project_id: str) -> Path:
 
 def embed_cache_file() -> Path:
     return home_dir() / "embed-cache.sqlite"
+
+
+def embed_api_key() -> str | None:
+    return os.environ.get("EASY_CONTEXT_EMBED_API_KEY") or None
+
+
+def embed_base_url() -> str | None:
+    return os.environ.get("EASY_CONTEXT_EMBED_BASE_URL") or None
+
+
+def embed_model() -> str:
+    """Model name sent to the remote OpenAI-compatible /embeddings endpoint (FR-012)."""
+    return os.environ.get("EASY_CONTEXT_EMBED_MODEL") or "text-embedding-3-small"
