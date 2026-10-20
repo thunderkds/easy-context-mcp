@@ -136,6 +136,8 @@ Modules: `discovery.py` (walk with `pathspec` gitwildmatch for `.gitignore`, rea
 - [ ] k larger than slice count → returns all
 - [ ] Response cap hit by the first hit alone → that hit truncated, not dropped
 - [ ] Concurrent search during write → reads committed state (WAL)
+- [ ] Binding walk-up ceiling (from HUN-6 review): `binding._git_root` must never return `$HOME` or an ancestor of it unless that exact path was given (dotfiles repo at `~/.git`); test it.
+- [ ] Tool signatures (from HUN-6 review): replace the HUN-6 stubs with the PRD contract — `index_path(path, force)`, `search_semantic(query, k, path_prefix)`, `get_slice(slice_id)`; `get_related(slice_id | path, limit)` is HUN-11.
 
 ---
 

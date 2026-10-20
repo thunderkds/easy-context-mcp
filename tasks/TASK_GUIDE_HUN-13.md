@@ -126,6 +126,7 @@ Multi-stage build: builder stage runs `uv sync --frozen --no-dev` and a script t
 - [ ] Host `~/.easy-context` owned by host UID — container must run as that UID or writes fail
 - [ ] `network_mode: host` unavailable on Docker Desktop → documented alternative
 - [ ] Image size target ≤ 500 MB — record actual
+- [ ] Binding walk-up ceiling (from HUN-6 review): in service mode `binding._git_root` must stop at `EASY_CONTEXT_WORKSPACE` — never return a directory above the workspace root.
 
 ---
 
