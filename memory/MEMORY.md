@@ -54,3 +54,4 @@
 - [Re-integrating old-schema branches](learnings.md) — main moved to v4 rebuilds; task agent merges main with a resolution brief.
 - [Timed refresh + orphan + GC (HUN-14)](decisions.md#architecture) — service-only refresh queue (user jobs first), safe orphan delete, daily embed-cache GC.
 - [Merge gate deadlock](learnings.md) — dependent In Progress task blocks the merge; Todo → merge → back, separate tool calls, user OK.
+- [Docs facts + open compose defects (HUN-15)](learnings.md) — docs test derives env list; timings; compose env pass-through + comment bugs untracked.

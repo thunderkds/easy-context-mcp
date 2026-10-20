@@ -95,3 +95,10 @@ HUN-10/12/13 were built when the index used additive ALTERs at v1; the peer sess
 ### 2026-10-20 — Merge gate deadlock with dependent tasks
 `pre_bash` blocks every merge while any task is In Progress, and it checks PROJECT_KANBAN.md before the command runs. When task B (In Progress) needs task A merged, move B to Todo (board push + pull + commit) in one tool call, merge A in the next, then set B back. Ask the user first: it is a deliberate gate bypass.
 **Files**: .claude/hooks/pre_bash_block_unsafe_merge.py, PROJECT_KANBAN.md
+
+### 2026-10-20 — Docs facts and open compose defects (HUN-15)
+- README product guide lives after §16 (`# Product guide`); `tests/test_docs.py` derives every `EASY_CONTEXT_*` name from `src/` and `compose.yaml` and fails if README lacks one — document any new env var in the same task.
+- Measured cold index (real model, 2 threads, i7-1165G7): this repo 293 files 98 s; easy-verifier-mcp 472 files 392 s; no-change re-run 0.27 s.
+- Open defects (no task yet): compose.yaml passes only WORKSPACE/HOME/THREADS/PORT into the container (REFRESH_SECONDS, MAX_*, CHUNK_*, EMBED_* need `environment:` edits); its comments use `UID=$(id -u) docker compose` (bash: UID readonly; README uses `export UID GID="$(id -g)"`) and a double-quoted `${PWD}` header (expands at registration; README uses single quotes).
+- A QA run of `claude mcp add --scope local` in a scratch repo leaves an empty project entry in `~/.claude-personal/.claude.json`; harmless.
+**Files**: README.md, tests/test_docs.py, compose.yaml
