@@ -79,3 +79,11 @@ The `feature` rule `new_code_without_test_share` pairs `foo.py` with `test_foo.p
 ### 2026-10-20 — Never `ruff --fix` test fixtures
 `ruff check --fix tests` strips "unused" imports from fixture repos (tests/fixtures/graph_repo/app.py, pkg/sub.py), breaking the import-edge tests. Fixture .py files start with `# ruff: noqa`; run `--fix` only on src/ and tests/*.py.
 **Files**: tests/fixtures/graph_repo/
+
+### 2026-10-20 — Complexity: easy-verifier counts more than ruff mccabe (HUN-18)
+easy-verifier `max_function_ccn` (threshold 15) adds boolean operators and comprehension clauses; ruff C901 does not, so ruff can pass at 10 while the verifier reads 19. Measure with an ast count (+1 per if/for/while/ifexp/except/with/assert, +n-1 per BoolOp, +1+ifs per comprehension) — it reproduced the verifier's 19 exactly.
+**Files**: src/easy_context_mcp/graph.py, src/easy_context_mcp/symbols.py
+
+### 2026-10-20 — Golden snapshots pin index output (HUN-18)
+`tests/test_refactor_golden.py` + `tests/golden_dump.py` compare every slice and edge row of the four fixture repos to `tests/fixtures/golden/*.txt`. Any task that intentionally changes chunking, symbols, refs or edges will fail it: regenerate the snapshots on purpose in that task (and say so in its review), never to silence a refactor. For whole-repo checks, index a frozen `git archive` copy, not the live tree.
+**Files**: tests/test_refactor_golden.py, tests/golden_dump.py, tests/fixtures/golden/
