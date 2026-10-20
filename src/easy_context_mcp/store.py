@@ -443,6 +443,49 @@ class ProjectStore:
         return out
 
 
+# Served-context counters live in their own tiny file beside index.sqlite, so counting a
+# response never waits on (or contends with) a job's write lock on the index (HUN-12).
+SERVED_SCHEMA = (
+    "CREATE TABLE IF NOT EXISTS served (id INTEGER PRIMARY KEY CHECK (id = 1), "
+    "chars INTEGER NOT NULL, slices INTEGER NOT NULL)"
+)
+
+
+def add_served(path: Path, chars: int, slices: int) -> bool:
+    """Add to the persisted counters without waiting; False if the file is busy or unwritable."""
+    try:
+        con = sqlite3.connect(path, timeout=0)
+        try:
+            con.execute("PRAGMA journal_mode=WAL")  # readers never block on a counter write
+            con.execute(SERVED_SCHEMA)
+            with con:
+                con.execute(
+                    "INSERT INTO served (id, chars, slices) VALUES (1, ?, ?) ON CONFLICT(id) "
+                    "DO UPDATE SET chars = chars + excluded.chars, slices = slices + excluded.slices",
+                    (chars, slices),
+                )
+            return True
+        finally:
+            con.close()
+    except sqlite3.Error:
+        return False
+
+
+def read_served(path: Path) -> tuple[int, int]:
+    """(chars, slices) persisted so far; (0, 0) if none or unreadable."""
+    if not path.is_file():
+        return (0, 0)
+    try:
+        con = sqlite3.connect(f"file:{path}?mode=ro", uri=True, timeout=0.2)
+        try:
+            row = con.execute("SELECT chars, slices FROM served WHERE id = 1").fetchone()
+        finally:
+            con.close()
+    except sqlite3.Error:
+        return (0, 0)
+    return (row[0], row[1]) if row else (0, 0)
+
+
 # Per-process matrix cache, least recently used first; bounded so many projects cannot pile up.
 MAX_CACHED_MATRICES = 4
 _MATRICES: "OrderedDict[str, tuple[str, list[str], list[str], np.ndarray]]" = OrderedDict()

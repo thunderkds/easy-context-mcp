@@ -132,11 +132,11 @@ def test_http_neither_errors_naming_both_options(http_server):
     assert "X-Easy-Context-Root" in text(res) and "root" in text(res)
 
 
-def test_http_arg_fallback_and_stub_tool(http_server, tmp_path):
+def test_http_arg_fallback_and_get_stats(http_server, tmp_path):
     res = anyio.run(call_http, http_server, "list_indexes", {"root": str(tmp_path)})
     assert res.structuredContent["root"] == os.path.realpath(tmp_path)
     res = anyio.run(call_http, http_server, "get_stats", {"root": str(tmp_path)})
-    assert res.isError and "not_implemented" in text(res)
+    assert not res.isError and res.structuredContent["files"] == 0
 
 
 def test_http_missing_root_creates_nothing(http_server, tmp_path):

@@ -116,17 +116,28 @@ def create_app(
     def list_indexes(ctx: Context, root: str | None = None) -> dict[str, Any]:
         """List every index on this machine with its job progress.
 
-        Each entry: project_id, root, files, slices, last_index_at, indexing, status, job_id,
-        files_done, files_total, eta_seconds, last_error.
+        Each entry: project_id, root, root_exists, files, slices, last_index_at, indexing,
+        status, job_id, files_done, files_total, eta_seconds, last_error; `error` if the index
+        cannot be read.
         """
         project = _bind(ctx, root, service_mode)
         return {**tools._envelope(project), "indexes": runner.list_indexes(project)}
 
     @app.tool()
-    def get_stats(ctx: Context, root: str | None = None) -> dict[str, Any]:
-        """Served-usage counters for the bound project."""
-        _bind(ctx, root, service_mode)
-        not_implemented("get_stats")
+    def get_stats(
+        ctx: Context, project_id: str | None = None, root: str | None = None
+    ) -> dict[str, Any]:
+        """Index stats and how much context was served, for the bound project.
+
+        Pass `project_id` (from `list_indexes`) for another project: you get counts, root and
+        timestamps only, never slice text. Fields: project_id, root, root_exists, files, slices,
+        skipped (count per reason from the last finished job, null if none), last_index_at, job
+        status fields, chars_served and slices_served (cumulative, kept in stats.sqlite) and
+        chars_served_since_start / slices_served_since_start (this server process only), and
+        `error` if the index cannot be read.
+        """
+        project = _bind(ctx, root, service_mode)
+        return runner.stats(project, project_id)
 
     return app
 
