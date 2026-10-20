@@ -4,6 +4,8 @@ import functools
 import logging
 import re
 import sqlite3
+import threading
+from collections import OrderedDict
 from pathlib import Path
 
 import numpy as np
@@ -91,6 +93,30 @@ _BUMP_GENERATION = (
     "ON CONFLICT(key) DO UPDATE SET value = CAST(value AS INTEGER) + 1"
 )
 
+# Operational bookkeeping, not index content (HUN-10): created on every open_write after the
+# version check/rebuild, never dropped by a rebuild, and not part of SCHEMA_VERSION. Rows are
+# written only by the holder of the project's write.lock (jobs.py). Times are epoch seconds.
+# A `queued` job lives only in the submitting server's memory.
+JOBS_SCHEMA = """
+CREATE TABLE IF NOT EXISTS jobs (
+    id TEXT PRIMARY KEY,
+    status TEXT NOT NULL,
+    path TEXT NOT NULL,
+    files_total INTEGER NOT NULL DEFAULT 0,
+    files_done INTEGER NOT NULL DEFAULT 0,
+    estimated_seconds REAL,
+    started_at REAL,
+    finished_at REAL,
+    owner_pid INTEGER,
+    owner_host TEXT,
+    last_error TEXT
+);
+"""
+JOB_COLUMNS = (
+    "id", "status", "path", "files_total", "files_done", "estimated_seconds", "started_at",
+    "finished_at", "owner_pid", "owner_host", "last_error",
+)
+
 
 @functools.cache
 def fts5_available() -> bool:
@@ -130,6 +156,7 @@ class ProjectStore:
                 f"DROP TABLE IF EXISTS files; {SCHEMA} {fts} {_BUMP_GENERATION}; "
                 f"PRAGMA user_version={SCHEMA_VERSION}; COMMIT;"
             )
+        con.executescript(JOBS_SCHEMA)  # bookkeeping: on every open, outside the rebuild
         return cls(con, path)
 
     @classmethod
@@ -164,6 +191,69 @@ class ProjectStore:
                 f"index {self.path} was built with model {indexed!r} but the server embeds "
                 f"with {model_id!r}; delete {self.path.parent} and index again"
             )
+
+    def set_meta(self, key: str, value: str) -> None:
+        with self.con:
+            self.con.execute(
+                "INSERT INTO meta (key, value) VALUES (?, ?) "
+                "ON CONFLICT(key) DO UPDATE SET value = excluded.value",
+                (key, value),
+            )
+
+    def _has_jobs(self) -> bool:  # an index written before HUN-10 opened read-only has none
+        return self.con.execute(
+            "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'jobs'"
+        ).fetchone() is not None
+
+    def save_job(self, job: dict) -> None:
+        cols, marks = ", ".join(JOB_COLUMNS), ", ".join("?" * len(JOB_COLUMNS))
+        with self.con:
+            self.con.execute(
+                f"INSERT OR REPLACE INTO jobs ({cols}) VALUES ({marks})",
+                [job[c] for c in JOB_COLUMNS],
+            )
+
+    def latest_job(self) -> dict | None:
+        if not self._has_jobs():
+            return None
+        row = self.con.execute(
+            f"SELECT {', '.join(JOB_COLUMNS)} FROM jobs "
+            "ORDER BY coalesce(started_at, 0) DESC, rowid DESC LIMIT 1"
+        ).fetchone()
+        return dict(zip(JOB_COLUMNS, row)) if row else None
+
+    def last_done_at(self) -> float | None:
+        if not self._has_jobs():
+            return None
+        return self.con.execute(
+            "SELECT max(finished_at) FROM jobs WHERE status = 'done'"
+        ).fetchone()[0]
+
+    def fail_running(self, now: float) -> None:
+        """Mark `running` rows failed. Call only while holding write.lock: any such row is stale."""
+        with self.con:
+            self.con.execute(
+                "UPDATE jobs SET status = 'failed', finished_at = ?, last_error = "
+                "'interrupted: owner pid ' || coalesce(owner_pid, '?') || ' on host ' || "
+                "coalesce(owner_host, '?') || ' stopped before the job finished' "
+                "WHERE status = 'running'",
+                (now,),
+            )
+
+    def prune_jobs(self, keep: int) -> None:
+        with self.con:
+            self.con.execute(
+                "DELETE FROM jobs WHERE id NOT IN (SELECT id FROM jobs "
+                "ORDER BY coalesce(started_at, 0) DESC LIMIT ?)",
+                (keep,),
+            )
+
+    def counts(self) -> tuple[int, int]:
+        """(files, slices)."""
+        return (
+            self.con.execute("SELECT count(*) FROM files").fetchone()[0],
+            self.con.execute("SELECT count(*) FROM slices").fetchone()[0],
+        )
 
     def file_states(self) -> dict[str, tuple[str, int | None, int | None, int]]:
         """path -> (sha256, size, mtime_ns, slice_count); size/mtime are None on older indexes."""
@@ -353,7 +443,10 @@ class ProjectStore:
         return out
 
 
-_MATRICES: dict[str, tuple[str, list[str], list[str], np.ndarray]] = {}
+# Per-process matrix cache, least recently used first; bounded so many projects cannot pile up.
+MAX_CACHED_MATRICES = 4
+_MATRICES: "OrderedDict[str, tuple[str, list[str], list[str], np.ndarray]]" = OrderedDict()
+_MATRICES_LOCK = threading.Lock()
 
 
 def search_vectors(
@@ -368,7 +461,11 @@ def search_vectors(
     with store.con:
         store.con.execute("BEGIN")
         generation = store.meta("generation") or "0"
-        cached = _MATRICES.get(str(store.path))
+        key = str(store.path)
+        with _MATRICES_LOCK:
+            cached = _MATRICES.get(key)
+            if cached is not None:
+                _MATRICES.move_to_end(key)
         if cached is None or cached[0] != generation:
             rows = store.con.execute("SELECT id, path, vector FROM slices ORDER BY id").fetchall()
             ids = [r[0] for r in rows]
@@ -379,7 +476,11 @@ def search_vectors(
                 else np.zeros((0, query.shape[0]), dtype=np.float32)
             )
             cached = (generation, ids, paths, matrix)
-            _MATRICES[str(store.path)] = cached
+            with _MATRICES_LOCK:
+                _MATRICES[key] = cached
+                _MATRICES.move_to_end(key)
+                while len(_MATRICES) > MAX_CACHED_MATRICES:
+                    _MATRICES.popitem(last=False)
     _, ids, paths, matrix = cached
     if not ids:
         return []
