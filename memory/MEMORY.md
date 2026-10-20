@@ -52,3 +52,5 @@
 - [Verifier CCN ≠ ruff mccabe](learnings.md) — verifier counts bool ops + comprehensions; ast script reproduces it.
 - [Golden snapshots pin index output](learnings.md) — test_refactor_golden fails on intended behaviour changes; regenerate on purpose.
 - [Re-integrating old-schema branches](learnings.md) — main moved to v4 rebuilds; task agent merges main with a resolution brief.
+- [Timed refresh + orphan + GC (HUN-14)](decisions.md#architecture) — service-only refresh queue (user jobs first), safe orphan delete, daily embed-cache GC.
+- [Merge gate deadlock](learnings.md) — dependent In Progress task blocks the merge; Todo → merge → back, separate tool calls, user OK.

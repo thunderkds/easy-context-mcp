@@ -92,3 +92,6 @@ easy-verifier `max_function_ccn` (threshold 15) adds boolean operators and compr
 HUN-10/12/13 were built when the index used additive ALTERs at v1; the peer session's HUN-16/11/17 moved main to versioned rebuilds (v3 → v4). Every long-lived branch then conflicted in store.py/tools.py. Integration = the task's own agent runs `git merge main` with an explicit resolution brief; the Supervisor never writes the resolution. Keep parallel branches short-lived when another session owns the schema.
 **Files**: src/easy_context_mcp/store.py, src/easy_context_mcp/tools.py, src/easy_context_mcp/jobs.py
 
+### 2026-10-20 — Merge gate deadlock with dependent tasks
+`pre_bash` blocks every merge while any task is In Progress, and it checks PROJECT_KANBAN.md before the command runs. When task B (In Progress) needs task A merged, move B to Todo (board push + pull + commit) in one tool call, merge A in the next, then set B back. Ask the user first: it is a deliberate gate bypass.
+**Files**: .claude/hooks/pre_bash_block_unsafe_merge.py, PROJECT_KANBAN.md

@@ -53,6 +53,11 @@
 
 ## Infrastructure
 
+### 2026-10-20 — Timed refresh, orphan cleanup, embed-cache GC (HUN-14)
+**Decision**: Service mode only: every `EASY_CONTEXT_REFRESH_SECONDS` (default 300, 0 = off; stdio never runs it) the server enqueues a `refresh` job per already-indexed project (no auto-discovery) into the same single worker. Queue is a PriorityQueue: user `index_path` jobs (priority 0) before refresh jobs (1); a refresh submit never waits and is skipped when the project has an active job; a user submit replaces a queued refresh job. Orphan: delete the whole index folder only when the root's parent exists and the root does not and (with a workspace) the workspace is mounted and non-empty — an unmounted volume deletes nothing; skipped while a job is active or another process holds the write lock. Embed-cache GC: rows whose chunk_hash no project index references, at most once a day (`gc_state` table), under a non-blocking cache-level flock.
+**Why**: FR-001c, FR-023, FR-025, NFR-001a. Built and reviewed by session easy-context-mcp-98; merged by 09 (e3b3c31) after briefly moving HUN-15 to Todo with the user's OK, because the merge gate blocks on any In Progress task.
+**Files**: src/easy_context_mcp/jobs.py, src/easy_context_mcp/embedding.py, src/easy_context_mcp/store.py, src/easy_context_mcp/config.py, src/easy_context_mcp/server.py
+
 ### 2026-10-20 — Docker packaging (HUN-13)
 **Decision**: Image `temvar/easy-context-mcp:0.1.0` (464 MB) with FastEmbed model baked at /opt/fastembed (`FASTEMBED_CACHE_PATH`, `HF_HUB_OFFLINE=1`). compose `service` (streamable HTTP 127.0.0.1:8767, network host, cpus 2, mem 2g, restart unless-stopped) and `stdio` (network none); workspace RO + ~/.easy-context RW at identical host paths with `create_host_path: false`; runs as host UID/GID; read_only, cap_drop ALL, no-new-privileges, tmpfs /tmp. Binding rejects roots outside `EASY_CONTEXT_WORKSPACE`; git walk never climbs above it. Smoke: `bash scripts/smoke_docker.sh`.
 **Why**: FR-017–FR-019, NFR-001a, NFR-005; easy-verifier `scorer` convention.
