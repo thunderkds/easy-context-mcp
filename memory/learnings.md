@@ -63,3 +63,16 @@ Peer session `easy-context-mcp-89` commits on local `main` too (DDR-0002, PRD FR
 ### 2026-10-20 — Calling easy-verifier without its MCP tools loaded
 When the session has no `easy-verifier` tools, call http://127.0.0.1:8766/mcp over JSON-RPC (initialize → `mcp-session-id` header → notifications/initialized → tools/call). `write_report` findings need title, detail, dimension, severity, confidence ('low'|'medium'|'high') and an evidence_ref `path:start-end` that exists in that dimension's evidence pack; otherwise pass `findings: []` and put the review summary in `agent_input.summary`.
 **Files**: PROJECT_SPEC.md
+
+### 2026-10-20 — FastMCP sync tools run on the event loop; Linux nice is per thread (HUN-10)
+`mcp/server/fastmcp/utilities/func_metadata.py:115` calls a sync tool directly (`return fn(**arguments_parsed_dict)`), so any long sync tool blocks every other call. `os.nice()` in a thread changes only that thread on Linux (probe: worker 12, main 5); ONNX Runtime pool threads inherit the nice of the thread that creates the session. The Supervisor's spawn note had both wrong — verify runtime claims before putting them in a guide.
+**Files**: src/easy_context_mcp/jobs.py, src/easy_context_mcp/server.py
+
+### 2026-10-20 — Docker `create_host_path` default creates root-owned dirs (HUN-13)
+With the family default (`create_host_path: true`), an unset `EASY_CONTEXT_WORKSPACE` made Docker create a root-owned `/EASY_CONTEXT_WORKSPACE-is-not-set` on the host and `up` succeeded. Use `create_host_path: false` so `up` fails with a mount error. The same default exists in ../easy-verifier-mcp/compose.yaml. Leftover dir needs `sudo rmdir` by the user.
+**Files**: compose.yaml
+
+### 2026-10-20 — easy-verifier change_risk 0 is often a naming artefact
+The `feature` rule `new_code_without_test_share` pairs `foo.py` with `test_foo.py` only; this repo names tests by feature (test_hygiene.py, test_jobs.py), so change_risk reads 0 even with full coverage. Report it as an artefact, not missing tests.
+**Files**: tests/test_hygiene.py, tests/test_jobs.py
+

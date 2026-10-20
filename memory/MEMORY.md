@@ -41,3 +41,8 @@
 - [Code symbol slices, schema v2 (DDR-0002)](decisions.md#architecture) — tree-sitter py/js/ts/java/kt symbol slices, content ids, FTS5 name bonus +2/+1, v1 index rebuilt.
 - [tree-sitter facts](learnings.md) — 0.26.0 segfaults (pin <0.26); Kotlin one-line bodies fall back; +10 MiB; ~5x slices.
 - [easy-verifier over HTTP](learnings.md) — JSON-RPC to :8766 when tools not loaded; write_report findings schema strict.
+- [Background jobs + counters](decisions.md#architecture) — worker thread nice 10, flock per project, jobs table, k≤100, https-only remote embedder, stats.sqlite counters.
+- [Docker packaging](decisions.md#infrastructure) — 464 MB image, model baked, service 127.0.0.1:8767 / stdio, identical-path mounts, create_host_path false, workspace ceiling.
+- [FastMCP sync on loop; nice per thread](learnings.md) — long sync tools block all calls; verify runtime claims before guides.
+- [create_host_path default](learnings.md) — creates root-owned dirs; use false.
+- [change_risk 0 naming artefact](learnings.md) — verifier pairs tests by file name only.

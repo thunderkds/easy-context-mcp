@@ -36,7 +36,17 @@
 **Why**: User (2026-10-20): AST symbol + graph retrieval beats vector search over line windows for code; option 1 (inside the six tools).
 **Files**: src/easy_context_mcp/symbols.py, src/easy_context_mcp/chunking.py, src/easy_context_mcp/store.py, src/easy_context_mcp/tools.py, pyproject.toml
 
+### 2026-10-20 — Background jobs + served counters (HUN-10, HUN-12)
+**Decision**: One worker thread per server, FIFO, nice ≥10 on that thread only (Linux nice is per thread; the job embedder is created inside it so ONNX threads inherit nice). Per-project `write.lock` flock held for the whole job; `jobs` table (additive) + in-memory `queued`; stale `running` rows failed when their lock is free. k clamped to 100; matrix cache LRU 4. Remote embedder only https or loopback http, key never in errors. Served counters in a separate per-project `stats.sqlite` (timeout=0, pending delta kept in memory); last job's skip counts in meta `last_tally`.
+**Why**: FR-001a/b, FR-007, FR-008, FR-012, NFR-001a, NFR-006; FastMCP runs sync tools on the event loop, so long work must leave the tool call.
+**Files**: src/easy_context_mcp/jobs.py, src/easy_context_mcp/tools.py, src/easy_context_mcp/store.py, src/easy_context_mcp/embedding.py
+
 ## Infrastructure
+
+### 2026-10-20 — Docker packaging (HUN-13)
+**Decision**: Image `temvar/easy-context-mcp:0.1.0` (464 MB) with FastEmbed model baked at /opt/fastembed (`FASTEMBED_CACHE_PATH`, `HF_HUB_OFFLINE=1`). compose `service` (streamable HTTP 127.0.0.1:8767, network host, cpus 2, mem 2g, restart unless-stopped) and `stdio` (network none); workspace RO + ~/.easy-context RW at identical host paths with `create_host_path: false`; runs as host UID/GID; read_only, cap_drop ALL, no-new-privileges, tmpfs /tmp. Binding rejects roots outside `EASY_CONTEXT_WORKSPACE`; git walk never climbs above it. Smoke: `bash scripts/smoke_docker.sh`.
+**Why**: FR-017–FR-019, NFR-001a, NFR-005; easy-verifier `scorer` convention.
+**Files**: Dockerfile, compose.yaml, scripts/smoke_docker.sh, scripts/download_model.py, src/easy_context_mcp/binding.py, src/easy_context_mcp/config.py
 
 ### 2026-10-20 — easy-verifier confidence score on every task (advisory)
 **Decision**: Stage 4 add-on: score each task with the shared easy-verifier container (127.0.0.1:8766) at `changes` (main...HEAD) and `task` scope, write its report, attach numbers + report to TASK_REVIEW Evidence and the html-report. Advisory, not a gate. Worktrees must stay under ~/workspace (container mount).
