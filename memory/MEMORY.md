@@ -24,7 +24,7 @@
 - [Storage + embedder (DDR-0001)](decisions.md#architecture) — one SQLite file/project + numpy search, shared embed cache, FastEmbed ONNX baked into image.
 - [Run modes + project binding](decisions.md#architecture) — Docker service on 127.0.0.1:8767 (main) + stdio; `X-Easy-Context-Root` header per repo, `root` fallback; worktree = own project.
 - [easy-verifier confidence score](decisions.md#infrastructure) — Stage 4 add-on per task: score changes + task scope at 127.0.0.1:8766, attach to TASK_REVIEW + html-report; advisory.
-- [Push at end of every stage](decisions.md#infrastructure) — SUPERSEDED: do NOT push until user lifts it; merge locally only.
+- [Push at end of every stage](decisions.md#infrastructure) — push lifted by user 2026-10-20 ("push"): commit + push `main` to `github` at each stage end.
 - [Binding walks up to .git root](decisions.md#architecture) — subfolder launch binds to its repo/worktree root; ceiling pending HUN-7/HUN-13.
 - [FastEmbed baking facts](learnings.md) — model id, FASTEMBED_CACHE_PATH, threads=, HF_HUB_OFFLINE=1, 87 MB.
 - [${PWD} header expansion](learnings.md) — Claude Code expands to launch dir; one .mcp.json serves all worktrees.
