@@ -1,0 +1,108 @@
+"""FastMCP app: six frozen tools, stdio + streamable-HTTP transports."""
+
+import argparse
+import socket
+import sys
+from typing import Any
+
+from mcp.server.fastmcp import Context, FastMCP
+
+from . import config
+from .binding import Project, resolve_project
+
+TOOL_NAMES = (
+    "index_path",
+    "search_semantic",
+    "get_slice",
+    "get_related",
+    "list_indexes",
+    "get_stats",
+)
+
+
+def _bind(ctx: Context, arg_root: str | None, service_mode: bool) -> Project:
+    request = ctx.request_context.request  # Starlette Request over HTTP, None over stdio
+    header_root = None
+    if service_mode and request is not None:
+        header_root = request.headers.get(config.ROOT_HEADER)  # case-insensitive
+    return resolve_project(header_root=header_root, arg_root=arg_root, service_mode=service_mode)
+
+
+def create_app(*, service_mode: bool = False, port: int | None = None) -> FastMCP:
+    app = FastMCP(
+        "easy-context",
+        host=config.HOST,
+        port=port if port is not None else config.port(),
+    )
+
+    def not_implemented(tool: str) -> None:
+        raise NotImplementedError(f"not_implemented: {tool} is not implemented yet")
+
+    @app.tool()
+    def index_path(ctx: Context, path: str = ".", root: str | None = None) -> dict[str, Any]:
+        """Index a path inside the bound project."""
+        _bind(ctx, root, service_mode)
+        not_implemented("index_path")
+
+    @app.tool()
+    def search_semantic(ctx: Context, query: str, root: str | None = None) -> dict[str, Any]:
+        """Semantic search in the bound project's index."""
+        _bind(ctx, root, service_mode)
+        not_implemented("search_semantic")
+
+    @app.tool()
+    def get_slice(ctx: Context, slice_id: str, root: str | None = None) -> dict[str, Any]:
+        """Fetch one slice by id."""
+        _bind(ctx, root, service_mode)
+        not_implemented("get_slice")
+
+    @app.tool()
+    def get_related(ctx: Context, slice_id: str, root: str | None = None) -> dict[str, Any]:
+        """Fetch 1-hop related slices."""
+        _bind(ctx, root, service_mode)
+        not_implemented("get_related")
+
+    @app.tool()
+    def list_indexes(ctx: Context, root: str | None = None) -> dict[str, Any]:
+        """List the bound project's indexes."""
+        project = _bind(ctx, root, service_mode)
+        return {"project_id": project.project_id, "root": project.root, "indexes": []}
+
+    @app.tool()
+    def get_stats(ctx: Context, root: str | None = None) -> dict[str, Any]:
+        """Served-usage counters for the bound project."""
+        _bind(ctx, root, service_mode)
+        not_implemented("get_stats")
+
+    return app
+
+
+def _port_is_free(port: int) -> bool:
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+        s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        try:
+            s.bind((config.HOST, port))
+        except OSError:
+            return False
+    return True
+
+
+def main(argv: list[str] | None = None) -> None:
+    parser = argparse.ArgumentParser(prog="easy-context-mcp", description="Easy Context MCP server")
+    parser.add_argument("--transport", choices=["stdio", "streamable-http"], default="stdio")
+    args = parser.parse_args(argv)
+
+    if args.transport == "stdio":
+        create_app(service_mode=False).run(transport="stdio")
+        return
+    try:
+        port = config.port()
+    except ValueError as exc:
+        sys.exit(f"easy-context-mcp: {exc}")
+    if not _port_is_free(port):
+        sys.exit(f"easy-context-mcp: {config.HOST}:{port} is already in use")
+    create_app(service_mode=True, port=port).run(transport="streamable-http")
+
+
+if __name__ == "__main__":
+    main()

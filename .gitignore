@@ -3,3 +3,5 @@ __pycache__/
 .claude/hooks/.state/
 .board/
 memory/event-trace/
+.venv/
+dist/
