@@ -45,6 +45,7 @@ def _visit(
 ) -> None:
     """Index, skip or count one discovered file. `old` is its stored (sha, size, mtime, slices)."""
     rel = entry.path
+    max_bytes = config.max_file_bytes()
     if entry.reason:
         tally.skipped[entry.reason] += 1
         return
@@ -54,11 +55,14 @@ def _visit(
         tally.slices += old[3]
         return
     try:
-        data = read_file(project.root, rel)
+        data = read_file(project.root, rel, max_bytes)
     except OSError:  # vanished, unreadable, or swapped for a symlink since discovery
         tally.skipped["unreadable"] += 1
         tally.kept.add(rel)  # a transient read error must not drop the file's old slices
         tally.slices += old[3] if old else 0
+        return
+    if len(data) > max_bytes:  # grew since the size check
+        tally.skipped["too_large"] += 1
         return
     if has_null_byte(data):
         tally.skipped["binary"] += 1

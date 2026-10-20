@@ -38,7 +38,8 @@ def resolve_index_dir(root: str, path: str) -> str:
 
 SECRET_PATTERNS = (
     ".env", ".env.*", "*.pem", "*.key", "id_rsa*", "id_dsa*", "id_ecdsa*", "id_ed25519*",
-    "credentials.json", "*.p12", "*.pfx",
+    "credentials.json", "*.p12", "*.pfx", "credentials", ".netrc", "_netrc", ".pgpass", ".npmrc",
+    ".pypirc", ".git-credentials", ".htpasswd", "*.jks", "*.keystore", "*.kdbx", "*.ppk",
 )
 BINARY_EXTENSIONS = frozenset({
     ".png", ".jpg", ".jpeg", ".gif", ".bmp", ".ico", ".webp", ".tif", ".tiff", ".psd", ".pdf",
@@ -169,8 +170,11 @@ def iter_files(root: str, start: str = "", max_bytes: int = 524288) -> Iterator[
                 yield entry
 
 
-def read_file(root: str, rel: str) -> bytes:
-    """Read a discovered file; refuses a file swapped for a symlink since discovery."""
+def read_file(root: str, rel: str, max_bytes: int) -> bytes:
+    """Read a discovered file, at most `max_bytes + 1` bytes (one extra byte flags oversize).
+
+    Refuses a file swapped for a symlink since discovery.
+    """
     fd = os.open(os.path.join(root, rel), os.O_RDONLY | os.O_NOFOLLOW)
     with os.fdopen(fd, "rb") as fh:
-        return fh.read()
+        return fh.read(max_bytes + 1)

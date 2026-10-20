@@ -143,7 +143,7 @@ def test_second_run_embeds_zero_files_and_reads_none(tmp_path, home, monkeypatch
     assert first["files_embedded"] == 2 and first["files_unchanged"] == 0
     reads = []
     real = tools.read_file
-    monkeypatch.setattr(tools, "read_file", lambda r, rel: reads.append(rel) or real(r, rel))
+    monkeypatch.setattr(tools, "read_file", lambda r, rel, mb: reads.append(rel) or real(r, rel, mb))
     emb = FakeEmbedder()
     second = run(p, emb)
     assert second["files_embedded"] == 0 and second["files_unchanged"] == 2
@@ -328,3 +328,54 @@ def test_demo_scenario_end_to_end(tmp_path, home):
     run(p)
     assert indexed_paths(home, p) == {"main.py"}
     assert run(p)["files_embedded"] == 0
+
+
+# --- Stage 4 hardening: more credential basenames, bounded read ---------------------------------
+
+CREDENTIAL_NAMES = [
+    "credentials", ".netrc", "_netrc", ".pgpass", ".npmrc", ".pypirc", ".git-credentials",
+    ".htpasswd", "keys.jks", "app.keystore", "vault.kdbx", "putty.ppk", ".env.example",
+    ".env", ".env.local", "a.pem", "a.key", "id_rsa", "id_rsa.pub", "credentials.json", "a.p12",
+]
+
+
+@pytest.mark.parametrize("name", CREDENTIAL_NAMES)
+def test_every_secret_pattern_skipped(tmp_path, home, name):
+    p = project(make_root(tmp_path, {name: f"TOKEN={KEY}\n", "ok.py": "x = 1\n"}))
+    res = run(p)
+    assert indexed_paths(home, p) == {"ok.py"} and res["skipped"]["secret"] == 1
+
+
+def test_similar_names_not_secret():
+    assert not is_secret_name("credentials.py") and not is_secret_name("npmrc.md")
+
+
+def test_file_grown_after_discovery_is_too_large_and_old_rows_removed(
+    tmp_path, home, monkeypatch
+):
+    monkeypatch.setenv("EASY_CONTEXT_MAX_FILE_BYTES", "500")
+    root = make_root(tmp_path, {"grow.txt": "small\n", "ok.py": "x = 1\n"})
+    p = project(root)
+    run(p)
+    assert indexed_paths(home, p) == {"grow.txt", "ok.py"}
+    (root / "grow.txt").write_text("changed\n")  # stat moves, so the run reads it
+    real = tools.iter_files
+
+    def growing(*a, **kw):
+        for e in real(*a, **kw):
+            if e.path == "grow.txt":
+                (root / "grow.txt").write_text("word " * 1000)  # grows after the stat
+            yield e
+
+    monkeypatch.setattr(tools, "iter_files", growing)
+    res = run(p)
+    assert res["skipped"]["too_large"] == 1 and res["files_removed"] == 1
+    assert indexed_paths(home, p) == {"ok.py"}
+
+
+def test_read_file_reads_at_most_max_bytes_plus_one(tmp_path):
+    from easy_context_mcp.discovery import read_file
+
+    (tmp_path / "f.txt").write_text("a" * 100)
+    assert len(read_file(str(tmp_path), "f.txt", 10)) == 11
+    assert len(read_file(str(tmp_path), "f.txt", 100)) == 100
