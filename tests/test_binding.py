@@ -236,3 +236,10 @@ def test_git_walk_stops_at_workspace(tmp_path, monkeypatch):
 def test_workspace_itself_may_be_a_root(tmp_path, monkeypatch):
     ws = _ws(tmp_path, monkeypatch)
     assert svc(header=str(ws)).root == str(ws)
+
+
+def test_workspace_check_precedes_existence_check(tmp_path, monkeypatch):
+    # an unmounted path outside the workspace gets the workspace error, not "does not exist"
+    _ws(tmp_path, monkeypatch)
+    with pytest.raises(BindingError, match="outside the workspace"):
+        svc(header=str(tmp_path / "nowhere"))

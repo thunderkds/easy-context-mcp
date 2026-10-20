@@ -22,14 +22,14 @@ def canonical_root(path: str) -> str:
     if not os.path.isabs(path):
         raise BindingError(f"root must be an absolute path, got {path!r}")
     root = os.path.realpath(path)
-    if not os.path.isdir(root):
-        raise BindingError(f"root does not exist or is not a directory: {path!r}")
     workspace = config.workspace()
     if workspace and not _inside(root, workspace):
         raise BindingError(
             f"root {path!r} is outside the workspace {workspace!r} "
             "(EASY_CONTEXT_WORKSPACE); only repos under the workspace can be indexed"
         )
+    if not os.path.isdir(root):
+        raise BindingError(f"root does not exist or is not a directory: {path!r}")
     return _git_root(root, workspace)
 
 
