@@ -6,6 +6,7 @@ Snapshots in tests/fixtures/golden/ were captured from main before the refactor.
 from pathlib import Path
 
 import pytest
+
 from golden_dump import dump_chunks, dump_index
 
 FIXTURES = Path(__file__).parent / "fixtures"
