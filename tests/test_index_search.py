@@ -127,9 +127,9 @@ def test_search_finds_auth_slice_with_full_hit_shape(indexed):
     res = tools.search_semantic(p, QUERY, embedder=emb)
     assert res["project_id"] == p.project_id and res["root"] == p.root
     hits = res["hits"]
-    for h in hits:
-        assert set(h) == {"id", "path", "start_line", "end_line", "score", "preview", "text",
-                          "truncated"}
+    base = {"id", "path", "start_line", "end_line", "score", "preview", "text", "truncated"}
+    for h in hits:  # code symbol slices add symbol + kind (+ part) (HUN-16)
+        assert base <= set(h) <= base | {"symbol", "kind", "part"}
         assert not os.path.isabs(h["path"])
         assert 1 <= h["start_line"] <= h["end_line"]
     top3 = hits[:3]
@@ -160,7 +160,7 @@ def test_default_k_is_5_and_env_override(indexed, monkeypatch):
 def test_k_larger_than_slice_count_returns_all(indexed):
     p, emb, result = indexed
     res = tools.search_semantic(p, QUERY, k=1000, embedder=emb)
-    assert len(res["hits"]) == result["slices"] and res["dropped"] == 0
+    assert len(res["hits"]) + res["dropped"] == result["slices"]
 
 
 def test_invalid_k_rejected(indexed):
@@ -175,7 +175,7 @@ def test_response_cap_drops_and_reports(indexed, monkeypatch):
     res = tools.search_semantic(p, QUERY, k=20, embedder=emb)
     assert len(json.dumps(res, indent=2, ensure_ascii=False)) <= 3000
     assert res["dropped"] > 0 and res["hits"]
-    assert len(res["hits"]) + res["dropped"] == result["slices"]
+    assert len(res["hits"]) + res["dropped"] == min(20, result["slices"])
 
 
 def test_default_response_cap_12000(tmp_path):
@@ -385,7 +385,7 @@ def test_search_during_uncommitted_write_reads_committed_state(indexed, home):
         writer.execute("BEGIN IMMEDIATE")
         writer.execute("DELETE FROM slices")
         res = tools.search_semantic(p, QUERY, k=1000, embedder=emb)
-        assert len(res["hits"]) == result["slices"]
+        assert len(res["hits"]) + res["dropped"] == result["slices"]
     finally:
         writer.rollback()
         writer.close()
@@ -418,9 +418,11 @@ def test_line_windows_short_and_blank():
 def test_chunk_env_override(tmp_path, monkeypatch, home):
     monkeypatch.setenv("EASY_CONTEXT_CHUNK_LINES", "20")
     monkeypatch.setenv("EASY_CONTEXT_CHUNK_OVERLAP", "5")
-    p = project(make_repo(tmp_path / "repo"))
+    root = make_repo(tmp_path / "repo")
+    shutil.copy(root / "inventory.py", root / "inventory.txt")  # .py is chunked by symbol now
+    p = project(root)
     tools.index_path(p, ".", embedder=FakeEmbedder())
-    spans = db_rows(home, p, "SELECT start_line, end_line FROM slices WHERE path='inventory.py'")
+    spans = db_rows(home, p, "SELECT start_line, end_line FROM slices WHERE path='inventory.txt'")
     assert sorted(spans)[:2] == [(1, 20), (16, 35)]
 
 

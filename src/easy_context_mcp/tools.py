@@ -7,7 +7,7 @@ from typing import Any
 
 from . import config
 from .binding import Project
-from .chunking import chunk_file, slice_id
+from .chunking import chunk_source
 from .discovery import (
     Entry,
     has_null_byte,
@@ -74,15 +74,16 @@ def _visit(
         tally.unchanged += 1
         tally.slices += old[3]
         return
-    windows = chunk_file(
-        rel, data.decode("utf-8", errors="replace"), config.chunk_lines(), config.chunk_overlap()
+    chunks = chunk_source(
+        rel, data, config.chunk_lines(), config.chunk_overlap(), config.max_slice_chars()
     )
     vectors, hashes, n_new = embed_cached(
-        [w[2] for w in windows], embedder, config.embed_cache_file()
+        [c.text for c in chunks], embedder, config.embed_cache_file()
     )
     rows = [
-        (slice_id(rel, s, e), s, e, text, h, v.tobytes(), hp, hl)
-        for (s, e, text, hp, hl), h, v in zip(windows, hashes, vectors)
+        (c.id, c.start_line, c.end_line, c.text, h, v.tobytes(), c.heading_path,
+         c.heading_level, c.symbol, c.kind, c.start_byte, c.end_byte, c.part)
+        for c, h, v in zip(chunks, hashes, vectors)
     ]
     store.replace_file(rel, sha, entry.size, entry.mtime_ns, embedder.model_id, rows)
     tally.embedded_files += 1
@@ -102,7 +103,7 @@ def index_path(
     (deleted, newly ignored, now secret/binary/oversize) are removed. One transaction per file.
     """
     start = resolve_index_dir(project.root, path)
-    config.chunk_overlap()  # validate chunk settings before touching the index
+    config.chunk_overlap(), config.max_slice_chars()  # validate settings before touching the index
     prefix = start + "/" if start else ""
     tally = _Tally()
     with closing(ProjectStore.open_write(config.index_file(project.project_id))) as store:
@@ -129,6 +130,13 @@ def index_path(
 
 def _capped(text: str, limit: int) -> tuple[str, bool]:
     return (text[:limit], True) if len(text) > limit else (text, False)
+
+
+def _symbol_fields(symbol: str | None, kind: str | None, part: str | None) -> dict[str, Any]:
+    """`symbol`/`kind` (+ `part` when split) for code symbol slices; nothing for other slices."""
+    if symbol is None:
+        return {}
+    return {"symbol": symbol, "kind": kind, **({"part": part} if part else {})}
 
 
 def _size(response: dict[str, Any]) -> int:
@@ -159,14 +167,14 @@ def search_semantic(
     with closing(store):
         store.check_model(embedder.model_id)
         qvec = normalize(embedder.embed([query.strip()]))[0]
-        ranked = search_vectors(store, qvec, k, prefix)
+        ranked = search_vectors(store, qvec, k, prefix, store.name_matches(query))
         rows = store.get_slices([sid for sid, _ in ranked])
 
     hits = []
     for sid, score in ranked:
         if sid not in rows:  # replaced by a concurrent re-index since ranking
             continue
-        _, path, start, end, text = rows[sid]
+        _, path, start, end, text, symbol, kind, part = rows[sid]
         capped, truncated = _capped(text, slice_cap)
         hits.append({
             "id": sid,
@@ -177,6 +185,7 @@ def search_semantic(
             "preview": " ".join(text.split())[:PREVIEW_CHARS],
             "text": capped,
             "truncated": truncated,
+            **_symbol_fields(symbol, kind, part),
         })
     return _fit_response({**_envelope(project), "indexed": True}, hits, response_cap)
 
@@ -212,7 +221,7 @@ def get_slice(project: Project, slice_id: str) -> dict[str, Any]:
         raise ValueError(
             f"unknown slice_id {slice_id!r} in project {project.project_id} ({project.root})"
         )
-    sid, path, start, end, text = row
+    sid, path, start, end, text, symbol, kind, part = row
     capped, truncated = _capped(text, config.max_slice_chars())
     return {
         **_envelope(project),
@@ -222,4 +231,5 @@ def get_slice(project: Project, slice_id: str) -> dict[str, Any]:
         "end_line": end,
         "text": capped,
         "truncated": truncated,
+        **_symbol_fields(symbol, kind, part),
     }
