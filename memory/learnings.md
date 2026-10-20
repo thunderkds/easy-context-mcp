@@ -32,3 +32,16 @@ Claude Code 2.1.304 expands `${PWD}` in `.mcp.json` headers to the launch direct
 ### 2026-10-20 — Linear status does not follow git here
 `.claude/board.json` has `git_auto_status: true`, but Linear's GitHub integration is not connected to `thunderkds/easy-context-mcp` (issues show no attachments after push/merge). `board_sync.py push status` refuses In Progress/Done while that flag is on, so the Supervisor set HUN-5/HUN-6 Done via the Linear API `issueUpdate(stateId)`. Resolved 2026-10-20: user chose `git_auto_status: false`; statuses now move via `board_sync.py push status`.
 **Files**: .claude/board.json, PROJECT_KANBAN.md
+
+### 2026-10-20 — FastMCP response size on the wire (HUN-7)
+FastMCP sends a tool result as text content `pydantic_core.to_json(result, indent=2)` AND duplicates it as `structuredContent`. The response cap (FR-009) is measured on the indent=2 JSON text (`tools._size`).
+**Files**: src/easy_context_mcp/tools.py
+
+### 2026-10-20 — Sub-agents cannot invoke skills
+`backend-developer` (and other role agents) have tools Read/Write/Edit/Bash/Glob/Grep — no Skill tool — so guide steps like `tdd`, `brainstorming` (C3) and `code-review` self-review are done by hand. The Supervisor runs the Stage 4 skills.
+**Files**: agents/backend.md, tasks/TASK_GUIDE_HUN-7.md
+
+### 2026-10-20 — Linear has no review state; merge gate needs Done
+Team states: Backlog, Todo, In Progress, Done, Canceled, Duplicate — `push status <ID> ready-for-review` fails (no status_map target). `pre_bash` blocks any push/merge while a task is In Progress on PROJECT_KANBAN.md, so after evidence is complete: `push status <ID> done` → `pull` → merge → push.
+**Files**: .claude/board.json, PROJECT_KANBAN.md
+

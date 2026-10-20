@@ -15,9 +15,14 @@
 **Files**: PRD.md, compose.yaml, Dockerfile
 
 ### 2026-10-20 — Binding walks up to the nearest .git root
-**Decision**: Every bound root (header, `root` arg, EASY_CONTEXT_ROOT, cwd) is realpath'd then walked up to the nearest ancestor with a `.git` file or dir; none found → keep the directory. Ceiling (workspace in service mode, never $HOME unless given) assigned to HUN-7/HUN-13.
+**Decision**: Every bound root (header, `root` arg, EASY_CONTEXT_ROOT, cwd) is realpath'd then walked up to the nearest ancestor with a `.git` file or dir; none found → keep the directory. $HOME ceiling implemented in HUN-7 (never climbs to $HOME or above unless given exactly); workspace ceiling for service mode is HUN-13.
 **Why**: HUN-5 spike 3 — Claude Code expands `${PWD}` to the launch directory, so a session started in a subfolder would otherwise get a second DB for the same repo.
 **Files**: src/easy_context_mcp/binding.py, docs/spikes/0001-stage1-spikes.md
+
+### 2026-10-20 — Index layout v1 (HUN-7)
+**Decision**: `index.sqlite` schema v1 (`PRAGMA user_version=1`): meta(model_id, generation), files(path, sha256), slices(id, path, start/end_line, text, chunk_hash, float32 L2-normalised vector). Slice id = sha256("path:start:end")[:16]; line windows 60 lines / 10 overlap (env EASY_CONTEXT_CHUNK_LINES / _OVERLAP); one transaction per file bumps generation; search opens read-only and never creates an index; all symlinks skipped (stricter than FR-010).
+**Why**: DDR-0001 one-file-per-project; generation counter invalidates the in-memory numpy matrix.
+**Files**: src/easy_context_mcp/store.py, src/easy_context_mcp/chunking.py, src/easy_context_mcp/tools.py, src/easy_context_mcp/discovery.py
 
 ## Infrastructure
 
