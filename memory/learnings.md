@@ -30,5 +30,5 @@ Claude Code 2.1.304 expands `${PWD}` in `.mcp.json` headers to the launch direct
 
 
 ### 2026-10-20 — Linear status does not follow git here
-`.claude/board.json` has `git_auto_status: true`, but Linear's GitHub integration is not connected to `thunderkds/easy-context-mcp` (issues show no attachments after push/merge). `board_sync.py push status` refuses In Progress/Done while that flag is on, so the Supervisor set HUN-5/HUN-6 Done via the Linear API `issueUpdate(stateId)`. Fix: connect the integration, or set `git_auto_status: false`.
+`.claude/board.json` has `git_auto_status: true`, but Linear's GitHub integration is not connected to `thunderkds/easy-context-mcp` (issues show no attachments after push/merge). `board_sync.py push status` refuses In Progress/Done while that flag is on, so the Supervisor set HUN-5/HUN-6 Done via the Linear API `issueUpdate(stateId)`. Resolved 2026-10-20: user chose `git_auto_status: false`; statuses now move via `board_sync.py push status`.
 **Files**: .claude/board.json, PROJECT_KANBAN.md

@@ -6,5 +6,5 @@
   "me": "hungnh1110",
   "status_map": {},
   "id_pattern": "HUN-\\d+",
-  "git_auto_status": true
+  "git_auto_status": false
 }
