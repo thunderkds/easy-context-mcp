@@ -46,7 +46,7 @@ Team states: Backlog, Todo, In Progress, Done, Canceled, Duplicate — `push sta
 **Files**: .claude/board.json, PROJECT_KANBAN.md
 
 ### 2026-10-20 — A peer Claude session shares this checkout
-Peer session `easy-context-mcp-89` commits on local `main` too (DDR-0002, PRD FR-026..028, HUN-16/HUN-17, a kanban commit). `git add -A` in this session swept its uncommitted PRD.md edit into commit 9360d89. Stage files by name; check `git log` for foreign commits before merging; Ownership (user, 2026-10-20): the peer session covers HUN-16 and HUN-17; this session does everything else. Update (user, 2026-10-20): HUN-11 moved to the peer session too (HUN-17 depends on it).
+Peer session `easy-context-mcp-89` commits on local `main` too (DDR-0002, PRD FR-026..028, HUN-16/HUN-17, a kanban commit). `git add -A` in this session swept its uncommitted PRD.md edit into commit 9360d89. Stage files by name; check `git log` for foreign commits before merging; Ownership (user, 2026-10-20): the peer session covers HUN-16 and HUN-17; this session does everything else. Update (user, 2026-10-20): HUN-11 moved to the peer session too (HUN-17 depends on it). Update (user, 2026-10-20): HUN-14 and HUN-15 also moved to the HUN-16/17 session.
 **Files**: PRD.md, PROJECT_KANBAN.md, docs/ddr/0002-code-symbol-slices-and-graph.md
 
 ### 2026-10-20 — Merge gate blocks read-only merge commands too
