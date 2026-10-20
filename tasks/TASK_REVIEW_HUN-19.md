@@ -67,9 +67,29 @@ Verbatim compose header comment lines (compose.yaml 3-10):
 #     docker compose run --rm -w "$PWD" stdio
 ```
 
-**AFTER**: [same command, post-change] OR [verbatim excerpt of the new content]
+**AFTER** (2026-10-20T15:09Z, same command with the dummy key `EASY_CONTEXT_EMBED_API_KEY=dummy`, workspace `/var/tmp`):
 
-**DELTA**: [one sentence — what a user can now do that they could not before]
+```
+$ EASY_CONTEXT_REFRESH_SECONDS=7 EASY_CONTEXT_MAX_SLICE_CHARS=1500 EASY_CONTEXT_EMBED_API_KEY=dummy docker compose config service | grep -E "REFRESH|MAX_SLICE|EMBED_API|DEFAULT_K"
+      EASY_CONTEXT_DEFAULT_K: ""
+      EASY_CONTEXT_EMBED_API_KEY: dummy
+      EASY_CONTEXT_MAX_SLICE_CHARS: "1500"
+      EASY_CONTEXT_REFRESH_SECONDS: "7"
+(same four lines again at top-level environment of the stdio service; unset -> "")
+
+$ docker run --rm --entrypoint python -e EASY_CONTEXT_REFRESH_SECONDS= temvar/easy-context-mcp:0.1.0 -c "...config.refresh_seconds()"
+300
+$ ... -e EASY_CONTEXT_REFRESH_SECONDS=7 ...
+7
+
+$ grep -E '^#   ' compose.yaml | sed 's/^#   //' > cmds.sh; bash -n cmds.sh   -> bash-n-ok
+export UID GID="$(id -g)"
+--header 'X-Easy-Context-Root: ${PWD}'
+```
+
+Tests: `uv run pytest -q` -> 372 passed; `uv run ruff check src tests` -> All checks passed; `bash scripts/smoke_docker.sh` -> ALL SMOKE CHECKS PASSED (own project `easy-context-smoke`, port 18767; live containers unchanged).
+
+**DELTA**: A user can now set any server setting (for example the refresh interval) from the host for the Docker service and the stdio container, and the compose comments run in bash as written.
 
 **WITNESS**: [who ran it and when — derived from `memory/event-trace/Txxx.jsonl`, never the
 implementing agent alone]
