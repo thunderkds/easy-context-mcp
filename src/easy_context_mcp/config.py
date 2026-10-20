@@ -29,6 +29,12 @@ def env_root() -> str | None:
     return os.environ.get("EASY_CONTEXT_ROOT") or None
 
 
+def workspace() -> str | None:
+    """Canonical workspace root when EASY_CONTEXT_WORKSPACE is set (container), else None."""
+    raw = os.environ.get("EASY_CONTEXT_WORKSPACE")
+    return os.path.realpath(os.path.expanduser(raw)) if raw else None
+
+
 def _int_env(name: str, default: int, minimum: int = 1) -> int:
     raw = os.environ.get(name)
     if not raw:

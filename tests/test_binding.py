@@ -180,3 +180,59 @@ def test_repo_under_home_still_walks_up(tmp_path, monkeypatch):
     (repo / ".git").mkdir()
     monkeypatch.setenv("HOME", str(home))
     assert svc(header=str(sub)).root == os.path.realpath(repo)
+
+
+# --- workspace ceiling (FR-018/FR-019, HUN-13) ---
+
+
+def _ws(tmp_path, monkeypatch):
+    ws = tmp_path / "ws"
+    (ws / "repo" / "sub").mkdir(parents=True)
+    (ws / "repo" / ".git").mkdir()
+    monkeypatch.setenv("EASY_CONTEXT_WORKSPACE", str(ws))
+    return ws
+
+
+def test_workspace_binds_repo_inside(tmp_path, monkeypatch):
+    ws = _ws(tmp_path, monkeypatch)
+    assert svc(header=str(ws / "repo" / "sub")).root == str(ws / "repo")
+
+
+def test_workspace_rejects_root_outside(tmp_path, monkeypatch):
+    _ws(tmp_path, monkeypatch)
+    other = tmp_path / "other"
+    other.mkdir()
+    with pytest.raises(BindingError) as e:
+        svc(header=str(other))
+    assert "outside the workspace" in str(e.value) and "EASY_CONTEXT_WORKSPACE" in str(e.value)
+
+
+def test_workspace_rejects_sibling_with_shared_prefix(tmp_path, monkeypatch):
+    _ws(tmp_path, monkeypatch)
+    sneaky = tmp_path / "ws-evil"
+    sneaky.mkdir()
+    with pytest.raises(BindingError):
+        svc(arg=str(sneaky))
+
+
+def test_workspace_rejects_symlink_escape(tmp_path, monkeypatch):
+    ws = _ws(tmp_path, monkeypatch)
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    (ws / "link").symlink_to(outside)
+    with pytest.raises(BindingError):
+        svc(header=str(ws / "link"))
+
+
+def test_git_walk_stops_at_workspace(tmp_path, monkeypatch):
+    # a .git ABOVE the workspace must never be returned
+    (tmp_path / ".git").mkdir()
+    ws = tmp_path / "ws"
+    (ws / "plain").mkdir(parents=True)
+    monkeypatch.setenv("EASY_CONTEXT_WORKSPACE", str(ws))
+    assert svc(header=str(ws / "plain")).root == str(ws / "plain")
+
+
+def test_workspace_itself_may_be_a_root(tmp_path, monkeypatch):
+    ws = _ws(tmp_path, monkeypatch)
+    assert svc(header=str(ws)).root == str(ws)

@@ -24,14 +24,24 @@ def canonical_root(path: str) -> str:
     root = os.path.realpath(path)
     if not os.path.isdir(root):
         raise BindingError(f"root does not exist or is not a directory: {path!r}")
-    return _git_root(root)
+    workspace = config.workspace()
+    if workspace and not _inside(root, workspace):
+        raise BindingError(
+            f"root {path!r} is outside the workspace {workspace!r} "
+            "(EASY_CONTEXT_WORKSPACE); only repos under the workspace can be indexed"
+        )
+    return _git_root(root, workspace)
 
 
-def _git_root(directory: str) -> str:
+def _inside(path: str, base: str) -> bool:
+    return path == base or path.startswith(base.rstrip(os.sep) + os.sep)
+
+
+def _git_root(directory: str, workspace: str | None = None) -> str:
     """Nearest ancestor (inclusive) holding a `.git` file or directory, else `directory`.
 
     The walk never climbs to $HOME or above it: a dotfiles repo at `~/.git` binds only when
-    $HOME itself was given.
+    $HOME itself was given. With a workspace it also never climbs above the workspace root.
     """
     ceiling = _home_and_ancestors()
     current = directory
@@ -39,7 +49,7 @@ def _git_root(directory: str) -> str:
         if os.path.lexists(os.path.join(current, ".git")):
             return current
         parent = os.path.dirname(current)
-        if parent == current or parent in ceiling:
+        if parent == current or parent in ceiling or current == workspace:
             return directory
         current = parent
 
