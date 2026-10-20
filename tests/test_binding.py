@@ -144,3 +144,39 @@ def test_stdio_cwd_and_env_walk_up(tmp_path, monkeypatch):
     assert stdio.root == os.path.realpath(repo)
     monkeypatch.setenv("EASY_CONTEXT_ROOT", str(sub))
     assert resolve_project(header_root=None, arg_root=None, service_mode=False).root == stdio.root
+
+
+def test_walk_up_never_reaches_home(tmp_path, monkeypatch):
+    home = tmp_path / "home" / "me"
+    proj = home / "code" / "proj"
+    proj.mkdir(parents=True)
+    (home / ".git").mkdir()  # dotfiles repo at ~/.git
+    monkeypatch.setenv("HOME", str(home))
+    assert svc(header=str(proj)).root == os.path.realpath(proj)
+
+
+def test_walk_up_never_reaches_home_ancestor(tmp_path, monkeypatch):
+    home = tmp_path / "home" / "me"
+    proj = home / "proj"
+    proj.mkdir(parents=True)
+    (tmp_path / ".git").mkdir()  # repo above $HOME
+    monkeypatch.setenv("HOME", str(home))
+    assert svc(header=str(proj)).root == os.path.realpath(proj)
+
+
+def test_home_given_exactly_binds_home(tmp_path, monkeypatch):
+    home = tmp_path / "home" / "me"
+    home.mkdir(parents=True)
+    (home / ".git").mkdir()
+    monkeypatch.setenv("HOME", str(home))
+    assert svc(header=str(home)).root == os.path.realpath(home)
+
+
+def test_repo_under_home_still_walks_up(tmp_path, monkeypatch):
+    home = tmp_path / "home" / "me"
+    repo = home / "repo"
+    sub = repo / "a" / "b"
+    sub.mkdir(parents=True)
+    (repo / ".git").mkdir()
+    monkeypatch.setenv("HOME", str(home))
+    assert svc(header=str(sub)).root == os.path.realpath(repo)

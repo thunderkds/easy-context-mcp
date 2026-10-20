@@ -3,7 +3,12 @@ name = "easy-context-mcp"
 version = "0.1.0"
 description = "Local semantic context MCP server (stdio + streamable HTTP)"
 requires-python = ">=3.10"
-dependencies = ["mcp>=1.29,<2"]
+dependencies = [
+    "fastembed>=0.9,<0.10",
+    "mcp>=1.29,<2",
+    "numpy>=1.26",
+    "pathspec>=0.12",
+]
 
 [project.scripts]
 easy-context-mcp = "easy_context_mcp.server:main"
@@ -20,6 +25,7 @@ packages = ["src/easy_context_mcp"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+markers = ["slow: uses the real FastEmbed model (skips if the model cache is absent)"]
 
 [tool.ruff]
 line-length = 100
