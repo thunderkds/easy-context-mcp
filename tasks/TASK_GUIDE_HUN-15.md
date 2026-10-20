@@ -113,6 +113,13 @@ N/A — pure backend / infrastructure task, no UI component. All three UI Eviden
 
 * Docs site
 
+Supervisor follow-ups (2026-10-20, after HUN-11/16/17/18 reviews):
+
+* Limitations must include: code symbol slices only for Python, JS/TS (incl. JSX/TSX), Java, Kotlin (others use line windows); Kotlin classes/objects written on one line fall back to line windows; call edges are matched by name, not type-resolved; calls on instance variables (`obj.m()`) get no edge; import/link edges are computed when the importing file is (re)processed, so an edge to a file added later appears only after the importer changes or `force`; index format upgrades rebuild the index once on the next `index_path`.
+* Tools section: `search_semantic` symbol-name match and the `symbol`/`kind`/`part` hit fields; `get_related` edge types (calls, called_by, contains, extends, parent, child, same_file, import, link), `direction`, ranking.
+* HUN-14 (timed refresh, orphan cleanup) is being built in parallel. Document `EASY_CONTEXT_REFRESH_SECONDS` and orphan cleanup only once HUN-14 is merged; `tests/test_docs.py` must read the env list from the code (`EASY_CONTEXT_` names in `src/` and `compose.yaml`), so it will fail if a later env var is left undocumented.
+* AC6 is HITL: prepare the exact commands for the user; the Supervisor asks the user to run them.
+
 QA agent runs every documented command verbatim on a clean checkout and fixes docs, not code; code defects found are reported to the Supervisor as new tasks.
 
 ---
