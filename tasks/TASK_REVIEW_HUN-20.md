@@ -33,8 +33,16 @@
 > **before any implementation commit exists**; if it does not (docs, templates, skill-instruction
 > text), BEFORE is the **verbatim prior content** of what changed — a quoted excerpt, not a command.
 
-**BEFORE**: [pasted timestamped command output showing the thing absent/failing, captured before the
-first implementation commit] OR [verbatim excerpt of the prior content, for non-executable changes]
+**BEFORE**: captured 2026-10-21T03:45:13Z (`date -u`), worktree `easy-context-mcp-HUN-20`, before any implementation commit:
+
+```
+$ uv run pytest tests/test_site_content.py tests/test_site_theme.py tests/test_site_deploy_config.py -q
+ERROR: file or directory not found: tests/test_site_content.py
+
+no tests ran in 0.00s
+$ ls site
+ls: cannot access 'site': No such file or directory
+```
 
 **AFTER**: [same command, post-change] OR [verbatim excerpt of the new content]
 
