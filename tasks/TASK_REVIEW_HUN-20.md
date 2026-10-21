@@ -14,15 +14,15 @@
 
 | Check | Result | Notes / output snippet |
 |-------|--------|------------------------|
-| **New test(s) cover Acceptance Criteria (file paths pasted)** | ☐ pass / ☐ fail | [test file path(s) — required before Done] |
-| Verification command run | ☐ pass / ☐ fail | [paste actual output] |
-| Negative cases hold | ☐ pass / ☐ fail | |
+| **New test(s) cover Acceptance Criteria (file paths pasted)** | ☑ pass | tests/test_site_content.py, tests/test_site_theme.py, tests/test_site_deploy_config.py (36 tests; 9 are negative cases) |
+| Verification command run | ☑ pass | `36 passed in 0.10s` (site tests) then `405 passed, 3 skipped, 6 warnings in 29.62s` (full suite), 2026-10-21 |
+| Negative cases hold | ☑ pass | renamed/seventh tool, edited README command, changed pitch, changed snapshot, leak scan, raw colour, light scheme, external script, changed token, extra .vercelignore line: all fail as expected |
 | verify | ☐ pass / ☐ fail / ☐ N/A | [what was observed — must literally state "pass" or "fail" here too, e.g. "skill run, feature confirmed working — pass": the merge gate scans this Notes column for the word "pass", not just the Result column] |
 | Review scope bounded to the change's blast radius (affected set, not whole repo) | ☐ pass / ☐ fail | [what was reviewed vs. skipped, and why] |
-| Full smoke suite still green (no regression) | ☐ pass / ☐ fail | |
-| **UI: Visual regression (diff or verdict pasted)** | ☐ pass / ☐ fail / ☐ N/A | [screenshot path or LLM verdict — required for UI tasks, Hard-Stop Gate 6] |
-| **UI: Design-system compliance (tokens/colors/typography verified)** | ☐ pass / ☐ fail / ☐ N/A | [method used + output] |
-| **UI: Responsiveness at target viewports** | ☐ pass / ☐ fail / ☐ N/A | [viewports tested, any overflow findings] |
+| Full smoke suite still green (no regression) | ☑ pass | `405 passed, 3 skipped` |
+| **UI: Visual regression (diff or verdict pasted)** | ☑ pass | Headless chromium screenshots reports/HUN-20/site-{375,768,1280}.png viewed by implementer: sections in AC 1 order; two flow lanes with arrows, labels not clipped |
+| **UI: Design-system compliance (tokens/colors/typography verified)** | ☑ pass | tests/test_site_theme.py pins the sibling :root tokens (values identical, no deviation), colours only via var(), AA contrast >= 4.5 computed for text/muted/cyan/green/amber on bg/surface/surface2; system font + monospace for commands |
+| **UI: Responsiveness at target viewports** | ☑ pass | 375 / 768 / 1280: no page horizontal scroll; lanes stacked at 375 and 768, side by side at 1280; install code blocks scroll inside their box |
 
 ---
 
@@ -44,7 +44,15 @@ $ ls site
 ls: cannot access 'site': No such file or directory
 ```
 
-**AFTER**: [same command, post-change] OR [verbatim excerpt of the new content]
+**AFTER**: same command, 2026-10-21 (after commit 6819734):
+
+```
+$ uv run pytest tests/test_site_content.py tests/test_site_theme.py tests/test_site_deploy_config.py -q
+....................................                                     [100%]
+36 passed in 0.10s
+$ uv run pytest -q
+405 passed, 3 skipped, 6 warnings in 29.62s
+```
 
 **DELTA**: [one sentence — what a user can now do that they could not before]
 
