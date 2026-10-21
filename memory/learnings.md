@@ -106,3 +106,11 @@ HUN-10/12/13 were built when the index used additive ALTERs at v1; the peer sess
 ### 2026-10-20 — Compose workspace cannot be /tmp (HUN-19)
 `EASY_CONTEXT_WORKSPACE=/tmp docker compose config` fails: `target /tmp already mounted as services.service.tmpfs[0]` (the workspace is mounted at its identical path, and the container has a /tmp tmpfs). Use another path (e.g. /var/tmp) in checks; real workspaces are never /tmp. Exporting EASY_CONTEXT_WORKSPACE in the shell also breaks 23 unrelated tests — keep it unset when running pytest.
 **Files**: compose.yaml
+
+### 2026-10-21 — Board and harness gotchas (HUN-20)
+- `board_sync.py update --guide` pushes only the issue description. Priority and `complexity:`/`risk:` labels of an existing issue stay as they were (only `create` sets them), so the KANBAN row keeps `? | Risk: ?` and the old priority until the user edits the issue in Linear.
+- A board pull after a guide push adds an empty `|  |  |` row to the guide's Files table (Linear markdown round trip). Restore the local guide (`git checkout --`) rather than committing it; an empty Files row confuses lane checks.
+- The built-in `verify` skill is user-only (`disable-model-invocation`): ask the user to run `/verify`; do not replicate it. Same applies to any skill that errors that way.
+- Something listens on port 80 on this machine: a curl to `127.0.0.1:` with an empty port hits it and returns an unrelated page. Use a fixed free port for local servers; never `pkill -f` a pattern that also appears in your own command line (it kills the tool shell, exit 144).
+- `site_sample_run.py` cannot run in `git archive` output (needs `git rev-parse`); rerun it in a `git worktree add --detach` throwaway checkout.
+**Files**: scripts/board_sync.py, scripts/site_sample_run.py, PROJECT_KANBAN.md

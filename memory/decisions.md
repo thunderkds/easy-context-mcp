@@ -76,4 +76,5 @@
 ### 2026-10-21 — Landing site: sibling pattern, one board (HUN-20)
 **Decision**: Public page as static `site/index.html` (no framework/build), Vercel Git integration from `main`, `.vercelignore` allowlist, drift tests against README + server tool list, before/after from a committed real-run snapshot — copied from easy-verifier-mcp. Site work stays on the single Linear board: user-approved exception to Hard-Stop Gate 4 ("go", 2026-10-21) because `board_sync.py` serves one Linear project only. Spec: `PROJECT_SPEC_SITE.md`.
 **Why**: User: "keep it simple, information, and visualize the flow, steps as the quick catch about the idea"; a second hand-written board would drift from the Linear sync. DDR gate: 0/3 (easy to reverse) → no DDR.
-**Files**: PROJECT_SPEC_SITE.md, tasks/TASK_GUIDE_HUN-20.md
+**Built** (HUN-20, merged 412fb3c): site/index.html (no JS), site/favicon.svg, site/sample-run.json from `uv run python scripts/site_sample_run.py` (indexes src/ only, throwaway EASY_CONTEXT_HOME; reproduces exactly except `commit`); tests/test_site_{content,theme,deploy_config}.py read tools from server.py with ast. Going live needs the operator to connect the repo in the Vercel dashboard.
+**Files**: PROJECT_SPEC_SITE.md, tasks/TASK_GUIDE_HUN-20.md, site/index.html, scripts/site_sample_run.py, vercel.json, .vercelignore, tests/test_site_content.py
