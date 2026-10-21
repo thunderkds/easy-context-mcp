@@ -11,8 +11,6 @@
 ### Todo
 
 ### In Progress
-- [ ] **HUN-30** — Embed-cache GC: an index file with no \`slices\` table must not stop the whole GC pass | Backend-Implementer | C1 | Risk: Medium | P1 | @hungnh1110 | Guide: `tasks/TASK_GUIDE_HUN-30.md`
-- [ ] **HUN-31** — Test isolation: no test may write into the real ~/.easy-context | QA-Automation-Agent | C2 | Risk: Medium | P2 | @hungnh1110 | Guide: `tasks/TASK_GUIDE_HUN-31.md`
 
 ### Ready for Review
 
@@ -33,6 +31,8 @@
 - [x] **HUN-18** — Refactor complex code-search functions (symbols.py, graph.py, chunking.py) below complexity limits, behaviour unchanged | Backend-Implementer | C2 | Risk: Medium | P2 | @hungnh1110 | Guide: `tasks/TASK_GUIDE_HUN-18.md`
 - [x] **HUN-19** — Docker compose: pass all EASY_CONTEXT settings into the container, fix the UID and header comments | Common-Infrastructure-Agent | C1 | Risk: Medium | P1 | @hungnh1110 | Guide: `tasks/TASK_GUIDE_HUN-19.md`
 - [x] **HUN-20** — Create the page that show up the guide, the main idea, flow of the context mcp | Frontend-Implementer | ? | Risk: ? | P0 | @hungnh1110 | Guide: `tasks/TASK_GUIDE_HUN-20.md`
+- [x] **HUN-30** — Embed-cache GC: an index file with no \`slices\` table must not stop the whole GC pass | Backend-Implementer | C1 | Risk: Medium | P1 | @hungnh1110 | Guide: `tasks/TASK_GUIDE_HUN-30.md`
+- [x] **HUN-31** — Test isolation: no test may write into the real ~/.easy-context | QA-Automation-Agent | C2 | Risk: Medium | P2 | @hungnh1110 | Guide: `tasks/TASK_GUIDE_HUN-31.md`
 
 ### Closed (will not do)
 
