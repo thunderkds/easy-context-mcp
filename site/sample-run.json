@@ -1,0 +1,37 @@
+{
+  "query": "how does the server bind a request to a project root",
+  "k": 5,
+  "hits": [
+    {
+      "path": "src/easy_context_mcp/server.py",
+      "start_line": 25,
+      "end_line": 31
+    },
+    {
+      "path": "src/easy_context_mcp/binding.py",
+      "start_line": 73,
+      "end_line": 96
+    },
+    {
+      "path": "src/easy_context_mcp/binding.py",
+      "start_line": 1,
+      "end_line": 8
+    },
+    {
+      "path": "src/easy_context_mcp/binding.py",
+      "start_line": 21,
+      "end_line": 33
+    },
+    {
+      "path": "src/easy_context_mcp/tools.py",
+      "start_line": 29,
+      "end_line": 30
+    }
+  ],
+  "whole_file_chars": 26904,
+  "slice_chars": 2410,
+  "slice_count": 5,
+  "file_count": 3,
+  "commit": "ce45eb2",
+  "date": "2026-10-21"
+}
