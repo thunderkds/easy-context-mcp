@@ -112,5 +112,7 @@ HUN-10/12/13 were built when the index used additive ALTERs at v1; the peer sess
 - A board pull after a guide push adds an empty `|  |  |` row to the guide's Files table (Linear markdown round trip). Restore the local guide (`git checkout --`) rather than committing it; an empty Files row confuses lane checks.
 - The built-in `verify` skill is user-only (`disable-model-invocation`): ask the user to run `/verify`; do not replicate it. Same applies to any skill that errors that way.
 - Something listens on port 80 on this machine: a curl to `127.0.0.1:` with an empty port hits it and returns an unrelated page. Use a fixed free port for local servers; never `pkill -f` a pattern that also appears in your own command line (it kills the tool shell, exit 144).
+- `board_sync.py create --guide` needs the draft title as `# TASK_GUIDE — <ID>: <title>` (literal `<ID>`); the board copy drops the title line and keeps `<ID>` in other text, so replace those and `update --guide` after create.
+- Delete `.claude/hooks/.state/active_task` once a task is merged: the step-limit hook keeps counting the Supervisor's own calls against that task and kills a call after 90.
 - `site_sample_run.py` cannot run in `git archive` output (needs `git rev-parse`); rerun it in a `git worktree add --detach` throwaway checkout.
 **Files**: scripts/board_sync.py, scripts/site_sample_run.py, PROJECT_KANBAN.md

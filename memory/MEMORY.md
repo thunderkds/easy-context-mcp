@@ -57,4 +57,4 @@
 - [Docs facts + open compose defects (HUN-15)](learnings.md) — docs test derives env list; timings; compose defects fixed by HUN-19.
 - [Compose workspace ≠ /tmp](learnings.md) — /tmp collides with the container tmpfs; keep EASY_CONTEXT_WORKSPACE unset for pytest.
 - [Landing site: sibling pattern, one board](decisions.md#infrastructure) — static site/ (merged HUN-20) on Vercel, drift tests, real-run snapshot; Gate 4 exception: site stays on Linear board.
-- [Board + harness gotchas (HUN-20)](learnings.md) — guide push skips priority/labels; pull adds empty Files row; /verify user-only; port 80 taken.
+- [Board + harness gotchas (HUN-20)](learnings.md) — guide push skips priority/labels; pull adds empty Files row; /verify user-only; port 80 taken; create needs `<ID>:` title; clear active_task after merge.
