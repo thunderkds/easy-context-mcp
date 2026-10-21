@@ -9,9 +9,9 @@
 ## Board
 
 ### Todo
-- [ ] **HUN-20** — Create the page that show up the guide, the main idea, flow of the context mcp | Frontend-Implementer | ? | Risk: ? | P0 | @hungnh1110 | Guide: `tasks/TASK_GUIDE_HUN-20.md`
 
 ### In Progress
+- [ ] **HUN-20** — Create the page that show up the guide, the main idea, flow of the context mcp | Frontend-Implementer | ? | Risk: ? | P0 | @hungnh1110 | Guide: `tasks/TASK_GUIDE_HUN-20.md`
 
 ### Ready for Review
 
