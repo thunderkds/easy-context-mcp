@@ -18,11 +18,14 @@
 | Verification command run | pass | 2026-10-21T08:18Z: `tests/test_refresh.py` all pass; full suite `408 passed, 3 skipped, 6 warnings in 32.20s`; `ruff check src tests`: `All checks passed!` |
 | Negative cases hold | pass | corrupt and locked index: both cache rows kept, `embed-cache GC skipped` logged |
 | verify | ☐ pass / ☐ fail / ☐ N/A | [what was observed — must literally state "pass" or "fail" here too, e.g. "skill run, feature confirmed working — pass": the merge gate scans this Notes column for the word "pass", not just the Result column] |
-| Review scope bounded to the change's blast radius (affected set, not whole repo) | ☐ pass / ☐ fail | [what was reviewed vs. skipped, and why] |
+| Review scope bounded to the change's blast radius (affected set, not whole repo) | ☑ pass | store.py:referenced_hashes, its only caller jobs.py:_gc (line 468), tests/test_refresh.py; lane_check: C1, 2 files, 59 lines, FITS |
 | Full smoke suite still green (no regression) | pass | 408 passed, 3 skipped |
-| **UI: Visual regression (diff or verdict pasted)** | ☐ pass / ☐ fail / ☐ N/A | [screenshot path or LLM verdict — required for UI tasks, Hard-Stop Gate 6] |
-| **UI: Design-system compliance (tokens/colors/typography verified)** | ☐ pass / ☐ fail / ☐ N/A | [method used + output] |
-| **UI: Responsiveness at target viewports** | ☐ pass / ☐ fail / ☐ N/A | [viewports tested, any overflow findings] |
+| Code review (Stage 4) | ☑ pass | P0 0 · P1 0 · P2 0 · P3 1 informational (an index being created by another process counts as empty; cost is re-embedding only). No fixes. Startup reads complete. Report: reports/code-review_hun-30-gc-zero-table_20261021T152023.html |
+| Security review (manual; built-in needs `origin`) | ☑ pass | static SQL (`sqlite_master` lookup, no input), connection stays `mode=ro`; no new delete path — gc_embed_cache still runs only after every index is read; corrupt/locked indexes still delete nothing (tests AC 2) |
+| easy-verifier confidence (advisory, PROJECT_SPEC Stage 4 Add-on) | overall: 65 · change_risk: 0 | changes scope, change_kind bugfix: architecture 100, test-strategy 75, requirement-fidelity 67, code-quality 67, blast-radius 65, reliability 64, security 18 (known false positives); 6 of 13 abstained. change_risk 0 = new_code_without_test_share 1.0 on store.py — naming artefact, covered by tests/test_refresh.py. Report: reports/easy-verifier_HUN-30_20261021T152023.html |
+| **UI: Visual regression (diff or verdict pasted)** | ☐ N/A | backend task, no UI |
+| **UI: Design-system compliance (tokens/colors/typography verified)** | ☐ N/A | backend task, no UI |
+| **UI: Responsiveness at target viewports** | ☐ N/A | backend task, no UI |
 
 ---
 
