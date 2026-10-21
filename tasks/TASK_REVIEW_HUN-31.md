@@ -18,11 +18,14 @@
 | Verification command run | pass | 2026-10-21T08:23:34Z, Docker service running, `-shm`/`-wal` excluded: snapshot (`find ~/.easy-context -path '*/models' -prune -o -printf '%p %T@\n' \| sort`) before, `uv run pytest -q` -> `413 passed, 3 skipped, 6 warnings in 29.12s`, snapshot after, diff -> empty. An earlier run (08:22:17) showed mtime bumps on 20+ EXISTING repo-*/kitchd-* dirs, all stamped within one second (1792570945.9): the service's timed refresh, no new paths, so not a test leak. |
 | Negative cases hold | pass | guard trips on fake-model index, temp-root index, zero-table index, fake embed-cache rows; stays quiet for missing home, `models/`, existing-dir edits, `-wal`/`-shm`, real-project new dir. With only conftest (test_refresh fix stashed) the original leaking test no longer reaches the real home (2 runs, no new dirs). |
 | verify | ☐ pass / ☐ fail / ☐ N/A (Supervisor) | [what was observed — must literally state "pass" or "fail" here too, e.g. "skill run, feature confirmed working — pass": the merge gate scans this Notes column for the word "pass", not just the Result column] |
-| Review scope bounded to the change's blast radius (affected set, not whole repo) | ☐ pass / ☐ fail | (Supervisor) test-only: `tests/conftest.py`, `tests/home_guard.py`, `tests/test_isolation.py`, one test in `tests/test_refresh.py`; nothing under `src/` |
+| Review scope bounded to the change's blast radius (affected set, not whole repo) | ☑ pass | tests/conftest.py, tests/home_guard.py, tests/test_isolation.py, tests/test_refresh.py (one test); no src/ change; lane_check: C2, 4 files, 245 lines, FITS; unpredicted: tests/home_guard.py, tests/test_refresh.py (justified) |
 | Full smoke suite still green (no regression) | pass | `413 passed, 3 skipped, 6 warnings in 29.12s`; `uv run ruff check tests` -> `All checks passed!` |
-| **UI: Visual regression (diff or verdict pasted)** | N/A | pure test-infrastructure task, no UI |
-| **UI: Design-system compliance (tokens/colors/typography verified)** | N/A | no UI |
-| **UI: Responsiveness at target viewports** | N/A | no UI |
+| Code review (Stage 4) | ☑ pass | P0 0 · P1 0 · P2 0 · P3 2 (conftest copies the home default; HUN-30's new GC tests use the leak pattern but hit the sink after merge). No fixes. Startup reads complete. Supervisor re-run: 413 passed, 3 skipped; test_isolation 8 passed; no new real index dir. Report: reports/code-review_hun-31-test-isolation_20261021T152639.html |
+| Security review (manual; built-in needs `origin`) | ☑ pass | guard opens the real home `mode=ro` and never writes or deletes there; the only rmtree targets its own `tempfile.mkdtemp` sink; no src/ change |
+| easy-verifier confidence (advisory, PROJECT_SPEC Stage 4 Add-on) | overall: 74 · change_risk: abstained | changes scope, change_kind bugfix: blast-radius 100, test-strategy 100, requirement-fidelity 67, security 30 (known false positives); 9 of 13 abstained; change_risk abstained (all metrics abstained). Report: reports/easy-verifier_HUN-31_20261021T152639.html |
+| **UI: Visual regression (diff or verdict pasted)** | ☐ N/A | test-infrastructure task, no UI |
+| **UI: Design-system compliance (tokens/colors/typography verified)** | ☐ N/A | test-infrastructure task, no UI |
+| **UI: Responsiveness at target viewports** | ☐ N/A | test-infrastructure task, no UI |
 
 ---
 
