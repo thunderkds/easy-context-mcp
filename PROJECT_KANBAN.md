@@ -1,5 +1,5 @@
 # PROJECT_KANBAN.md
-**Last updated**: 2026-10-20
+**Last updated**: 2026-10-21
 
 > Board cache, pulled from the board by `python3 scripts/board_sync.py pull`. Do not edit it by hand:
 > the board is the source of truth, and the next pull overwrites this file.
@@ -9,6 +9,7 @@
 ## Board
 
 ### Todo
+- [ ] **HUN-20** — Create the page that show up the guide, the main idea, flow of the context mcp | Frontend-Implementer | ? | Risk: ? | P0 | @hungnh1110 | Guide: `tasks/TASK_GUIDE_HUN-20.md`
 
 ### In Progress
 

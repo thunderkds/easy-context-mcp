@@ -56,3 +56,4 @@
 - [Merge gate deadlock](learnings.md) — dependent In Progress task blocks the merge; Todo → merge → back, separate tool calls, user OK.
 - [Docs facts + open compose defects (HUN-15)](learnings.md) — docs test derives env list; timings; compose defects fixed by HUN-19.
 - [Compose workspace ≠ /tmp](learnings.md) — /tmp collides with the container tmpfs; keep EASY_CONTEXT_WORKSPACE unset for pytest.
+- [Landing site: sibling pattern, one board](decisions.md#infrastructure) — static site/ on Vercel, drift tests, real-run snapshot; Gate 4 exception: site stays on Linear board.

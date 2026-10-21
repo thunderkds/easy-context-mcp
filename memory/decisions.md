@@ -72,3 +72,8 @@
 **Decision**: RESTORED 2026-10-20 (user: "push", after HUN-19): push `main` to `github` again at the end of each stage. Earlier: SUPERSEDED 2026-10-20 — user: "continue your work, do not push". Commit and merge locally; no `git push` until the user lifts it. (Was: push at every stage end.)
 **Why**: User instruction ("keep when you complete the stage and push").
 **Files**: PROJECT_SPEC.md
+
+### 2026-10-21 — Landing site: sibling pattern, one board (HUN-20)
+**Decision**: Public page as static `site/index.html` (no framework/build), Vercel Git integration from `main`, `.vercelignore` allowlist, drift tests against README + server tool list, before/after from a committed real-run snapshot — copied from easy-verifier-mcp. Site work stays on the single Linear board: user-approved exception to Hard-Stop Gate 4 ("go", 2026-10-21) because `board_sync.py` serves one Linear project only. Spec: `PROJECT_SPEC_SITE.md`.
+**Why**: User: "keep it simple, information, and visualize the flow, steps as the quick catch about the idea"; a second hand-written board would drift from the Linear sync. DDR gate: 0/3 (easy to reverse) → no DDR.
+**Files**: PROJECT_SPEC_SITE.md, tasks/TASK_GUIDE_HUN-20.md
