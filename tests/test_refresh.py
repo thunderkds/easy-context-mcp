@@ -339,3 +339,57 @@ def test_cycle_gc_keeps_hashes_a_project_references(tmp_path):
     assert used
     Refresher(r, 60).cycle()
     assert cache_hashes(config.embed_cache_file()) == used
+
+
+def gc_home_with_second_index(tmp_path, make_second):
+    """Index A (real) + a second index file made by `make_second(path)`; cache holds A's hashes + one orphan."""
+    root = make_files(tmp_path / "repo", 2)
+    p, emb = project(root), FakeEmbedder()
+    r = JobRunner(emb)
+    index_now(r, p)
+    seed_cache(config.embed_cache_file(), ["orphan-hash"], model=emb.model_id)
+    used = cache_hashes(config.embed_cache_file()) - {"orphan-hash"}
+    second = config.home_dir() / "indexes" / "repo-second" / "index.sqlite"
+    second.parent.mkdir(parents=True)
+    make_second(second)
+    return r, used
+
+
+def test_cycle_gc_treats_zero_table_index_as_empty(tmp_path):
+    def zero_table(path):
+        sqlite3.connect(path).close()
+
+    r, used = gc_home_with_second_index(tmp_path, zero_table)
+    Refresher(r, 60).cycle()
+    assert cache_hashes(config.embed_cache_file()) == used
+
+
+def test_cycle_gc_skips_pass_on_corrupt_index(tmp_path, caplog):
+    r, used = gc_home_with_second_index(
+        tmp_path, lambda path: path.write_bytes(os.urandom(4096))
+    )
+    with caplog.at_level("WARNING"):
+        Refresher(r, 60).cycle()
+    assert cache_hashes(config.embed_cache_file()) == used | {"orphan-hash"}
+    assert "embed-cache GC skipped" in caplog.text
+
+
+def test_cycle_gc_skips_pass_on_locked_index(tmp_path, monkeypatch, caplog):
+    def locked(path):
+        con = sqlite3.connect(path, isolation_level=None)
+        con.execute("CREATE TABLE slices (chunk_hash TEXT)")
+        con.execute("BEGIN EXCLUSIVE")
+        locked_cons.append(con)
+
+    locked_cons: list[sqlite3.Connection] = []
+    r, used = gc_home_with_second_index(tmp_path, locked)
+    real_connect = sqlite3.connect
+    monkeypatch.setattr(
+        sqlite3, "connect",
+        lambda *a, **kw: real_connect(*a, **{**kw, "timeout": 0.05} if kw.get("uri") else kw),
+    )
+    with caplog.at_level("WARNING"):
+        Refresher(r, 60).cycle()
+    locked_cons[0].close()
+    assert cache_hashes(config.embed_cache_file()) == used | {"orphan-hash"}
+    assert "embed-cache GC skipped" in caplog.text

@@ -507,6 +507,11 @@ def referenced_hashes(path: Path) -> set[str]:
     """Every `chunk_hash` an index file references. sqlite3.Error propagates (caller aborts)."""
     con = sqlite3.connect(f"file:{path}?mode=ro", uri=True, timeout=5)
     try:
+        has_slices = con.execute(
+            "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'slices'"
+        ).fetchone()
+        if has_slices is None:  # no slices table: the file references no chunk hashes
+            return set()
         return {r[0] for r in con.execute("SELECT DISTINCT chunk_hash FROM slices")}
     finally:
         con.close()
