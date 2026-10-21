@@ -9,10 +9,10 @@
 ## Board
 
 ### Todo
-- [ ] **HUN-30** — Embed-cache GC: an index file with no \`slices\` table must not stop the whole GC pass | Backend-Implementer | C1 | Risk: Medium | P1 | @hungnh1110 | Guide: `tasks/TASK_GUIDE_HUN-30.md`
-- [ ] **HUN-31** — Test isolation: no test may write into the real ~/.easy-context | QA-Automation-Agent | C2 | Risk: Medium | P2 | @hungnh1110 | Guide: `tasks/TASK_GUIDE_HUN-31.md`
 
 ### In Progress
+- [ ] **HUN-30** — Embed-cache GC: an index file with no \`slices\` table must not stop the whole GC pass | Backend-Implementer | C1 | Risk: Medium | P1 | @hungnh1110 | Guide: `tasks/TASK_GUIDE_HUN-30.md`
+- [ ] **HUN-31** — Test isolation: no test may write into the real ~/.easy-context | QA-Automation-Agent | C2 | Risk: Medium | P2 | @hungnh1110 | Guide: `tasks/TASK_GUIDE_HUN-31.md`
 
 ### Ready for Review
 
