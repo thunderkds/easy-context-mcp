@@ -58,3 +58,4 @@
 - [Compose workspace ≠ /tmp](learnings.md) — /tmp collides with the container tmpfs; keep EASY_CONTEXT_WORKSPACE unset for pytest.
 - [Landing site: sibling pattern, one board](decisions.md#infrastructure) — static site/ (merged HUN-20) on Vercel, drift tests, real-run snapshot; Gate 4 exception: site stays on Linear board.
 - [Board + harness gotchas (HUN-20)](learnings.md) — guide push skips priority/labels; pull adds empty Files row; /verify user-only; port 80 taken; create needs `<ID>:` title; clear active_task after merge.
+- [Test isolation + safe service verify (HUN-30/31)](learnings.md) — use runner fixture; conftest sink + home guard; verify on a home copy with a separate image tag.

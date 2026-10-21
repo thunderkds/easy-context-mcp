@@ -116,3 +116,9 @@ HUN-10/12/13 were built when the index used additive ALTERs at v1; the peer sess
 - Delete `.claude/hooks/.state/active_task` once a task is merged: the step-limit hook keeps counting the Supervisor's own calls against that task and kills a call after 90.
 - `site_sample_run.py` cannot run in `git archive` output (needs `git rev-parse`); rerun it in a `git worktree add --detach` throwaway checkout.
 **Files**: scripts/board_sync.py, scripts/site_sample_run.py, PROJECT_KANBAN.md
+
+### 2026-10-21 — Test isolation and service verification (HUN-30, HUN-31)
+- Tests leaked into the real ~/.easy-context because `test_refresh` built `JobRunner(emb)` directly and `Refresher.cycle()` queued a job that ran after monkeypatch restored the env. Use the `runner` fixture (joins the queue). Since HUN-31, `tests/conftest.py` gives every test a tmp home, keeps EASY_CONTEXT_HOME on a session sink after the last test, and `tests/home_guard.py` fails the run on new fake/temp/no-meta index dirs or new fake cache rows in the real home.
+- Verify a service change without touching the user's data: `docker build -t easy-context-mcp:<task>-verify .` (never rebuild the `temvar/easy-context-mcp:0.1.0` tag the live service uses), `docker run` it with the compose hardening on a free port against an rsync copy of ~/.easy-context under /var/tmp, `EASY_CONTEXT_REFRESH_SECONDS=5`; remove the image and copy afterwards.
+- The merge gate blocks `git merge` even in a throwaway worktree while tasks are In Progress; check overlap by reading hunks instead.
+**Files**: tests/conftest.py, tests/home_guard.py, tests/test_refresh.py, src/easy_context_mcp/store.py
