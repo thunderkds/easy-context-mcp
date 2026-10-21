@@ -11,7 +11,6 @@
 ### Todo
 
 ### In Progress
-- [ ] **HUN-20** — Create the page that show up the guide, the main idea, flow of the context mcp | Frontend-Implementer | ? | Risk: ? | P0 | @hungnh1110 | Guide: `tasks/TASK_GUIDE_HUN-20.md`
 
 ### Ready for Review
 
@@ -31,6 +30,7 @@
 - [x] **HUN-17** — Symbol graph edges (calls, called_by, contains, extends) in get_related | Backend-Implementer | C2 | Risk: Medium | P1 | @hungnh1110 | Guide: `tasks/TASK_GUIDE_HUN-17.md`
 - [x] **HUN-18** — Refactor complex code-search functions (symbols.py, graph.py, chunking.py) below complexity limits, behaviour unchanged | Backend-Implementer | C2 | Risk: Medium | P2 | @hungnh1110 | Guide: `tasks/TASK_GUIDE_HUN-18.md`
 - [x] **HUN-19** — Docker compose: pass all EASY_CONTEXT settings into the container, fix the UID and header comments | Common-Infrastructure-Agent | C1 | Risk: Medium | P1 | @hungnh1110 | Guide: `tasks/TASK_GUIDE_HUN-19.md`
+- [x] **HUN-20** — Create the page that show up the guide, the main idea, flow of the context mcp | Frontend-Implementer | ? | Risk: ? | P0 | @hungnh1110 | Guide: `tasks/TASK_GUIDE_HUN-20.md`
 
 ### Closed (will not do)
 
