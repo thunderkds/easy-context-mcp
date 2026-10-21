@@ -33,8 +33,29 @@
 > **before any implementation commit exists**; if it does not (docs, templates, skill-instruction
 > text), BEFORE is the **verbatim prior content** of what changed — a quoted excerpt, not a command.
 
-**BEFORE**: [pasted timestamped command output showing the thing absent/failing, captured before the
-first implementation commit] OR [verbatim excerpt of the prior content, for non-executable changes]
+**BEFORE** (unmodified main at 086cc65, captured 2026-10-21T08:17Z-08:25Z, Docker `service` left running):
+
+Method: `snap.sh` = `find ~/.easy-context -path '*/models' -prune -o -printf '%p %T@\n' | sort`. For each `tests/test_*.py` module in turn: snapshot, `uv run pytest -q -x <module>`, snapshot, `diff`, with `-shm`/`-wal` lines and the `indexes` parent-dir mtime line excluded. All 17 modules passed (rc=0). Result per module: 15 modules, zero diff lines. Two modules showed new index dirs:
+
+```
+test_jobs     (run 1)  > indexes/repo-8b658b3c6b2c , indexes/repo-8b658b3c6b2c/index.sqlite   (meta: model_id|fake-bow-256, generation|3)
+test_refresh  (run 1)  > indexes/repo-2828ce1f1e11 , .../index.sqlite                          (no tables)
+```
+
+Re-run alone, twice each, to separate our leak from Docker/HUN-30 noise:
+
+```
+== test_jobs run1:    (no new paths)
+== test_refresh run1: > indexes/repo-98dcbe8e7c76 , .../index.sqlite
+== test_jobs run2:    (no new paths)
+== test_refresh run2: > indexes/repo-c2e740a92b75 , .../index.sqlite , .../index.sqlite-journal
+```
+
+Bisected per test (each test of test_refresh run alone, snapshot diff): only
+`tests/test_refresh.py::test_cycle_gc_keeps_hashes_a_project_references` created a new index dir (`newdirs=1`); the other 14 gave 0.
+Cause (hypothesis, confirmed by the AFTER diff): that test builds `JobRunner(emb)` directly (no `runner` fixture, so no queue join), and `Refresher(r, 60).cycle()` queues a refresh job. The job runs on the worker thread after the test ends, when monkeypatch has restored the env, so `config.home_dir()` resolves to the real `~/.easy-context` and the job writes an index there. The same pattern in `test_jobs` leaked once (fake-bow-256, root = a tmp repo) in 3 runs, so it is intermittent and is a race of the same class; the one-off could not be separated from HUN-30's parallel pytest, so it is recorded as "possible, unconfirmed".
+
+Excluded from the diffs: `-shm`/`-wal` files (Docker service), the `indexes` parent-dir mtime (changes when any child is added), `~/.easy-context/models` (pruned by find), and index files of real projects (kitchd-*) that the service touches. Nothing under the real home was deleted or modified by this QA run, except that the leaks themselves added new repo-* dirs (listed above) for the Supervisor's cleanup.
 
 **AFTER**: [same command, post-change] OR [verbatim excerpt of the new content]
 
