@@ -14,12 +14,12 @@
 
 | Check | Result | Notes / output snippet |
 |-------|--------|------------------------|
-| **New test(s) cover Acceptance Criteria (file paths pasted)** | ☐ pass / ☐ fail | [test file path(s) — required before Done] |
-| Verification command run | ☐ pass / ☐ fail | [paste actual output] |
-| Negative cases hold | ☐ pass / ☐ fail | |
+| **New test(s) cover Acceptance Criteria (file paths pasted)** | pass | `tests/test_refresh.py`: `test_cycle_gc_treats_zero_table_index_as_empty` (AC1), `test_cycle_gc_skips_pass_on_corrupt_index`, `test_cycle_gc_skips_pass_on_locked_index` (AC2) |
+| Verification command run | pass | 2026-10-21T08:18Z: `tests/test_refresh.py` all pass; full suite `408 passed, 3 skipped, 6 warnings in 32.20s`; `ruff check src tests`: `All checks passed!` |
+| Negative cases hold | pass | corrupt and locked index: both cache rows kept, `embed-cache GC skipped` logged |
 | verify | ☐ pass / ☐ fail / ☐ N/A | [what was observed — must literally state "pass" or "fail" here too, e.g. "skill run, feature confirmed working — pass": the merge gate scans this Notes column for the word "pass", not just the Result column] |
 | Review scope bounded to the change's blast radius (affected set, not whole repo) | ☐ pass / ☐ fail | [what was reviewed vs. skipped, and why] |
-| Full smoke suite still green (no regression) | ☐ pass / ☐ fail | |
+| Full smoke suite still green (no regression) | pass | 408 passed, 3 skipped |
 | **UI: Visual regression (diff or verdict pasted)** | ☐ pass / ☐ fail / ☐ N/A | [screenshot path or LLM verdict — required for UI tasks, Hard-Stop Gate 6] |
 | **UI: Design-system compliance (tokens/colors/typography verified)** | ☐ pass / ☐ fail / ☐ N/A | [method used + output] |
 | **UI: Responsiveness at target viewports** | ☐ pass / ☐ fail / ☐ N/A | [viewports tested, any overflow findings] |
@@ -47,9 +47,9 @@ FAILED tests/test_refresh.py::test_cycle_gc_treats_zero_table_index_as_empty
 1 failed, 2 passed, 15 deselected in 1.21s
 ```
 
-**AFTER**: [same command, post-change] OR [verbatim excerpt of the new content]
+**AFTER**: 2026-10-21T08:18Z, same three tests plus full file, post-change: all pass (full suite 408 passed, 3 skipped).
 
-**DELTA**: [one sentence — what a user can now do that they could not before]
+**DELTA**: The embed-cache GC now runs when one index file has no `slices` table, so `embed-cache.sqlite` is collected again.
 
 **WITNESS**: [who ran it and when — derived from `memory/event-trace/Txxx.jsonl`, never the
 implementing agent alone]
