@@ -33,8 +33,19 @@
 > **before any implementation commit exists**; if it does not (docs, templates, skill-instruction
 > text), BEFORE is the **verbatim prior content** of what changed — a quoted excerpt, not a command.
 
-**BEFORE**: [pasted timestamped command output showing the thing absent/failing, captured before the
-first implementation commit] OR [verbatim excerpt of the prior content, for non-executable changes]
+**BEFORE**: captured 2026-10-21T08:17:38Z on unmodified `store.py`, command `uv run pytest tests/test_refresh.py -q -k "zero_table or corrupt_index or locked_index"`:
+
+```
+>       assert cache_hashes(config.embed_cache_file()) == used
+E       AssertionError: assert {'627cb8cc717...'orphan-hash'} == {'627cb8cc717...4e12774863ad'}
+E         Extra items in the left set:
+E         'orphan-hash'
+WARNING  easy_context_mcp.jobs:jobs.py:471 embed-cache GC skipped
+  File ".../store.py", line 510, in referenced_hashes
+sqlite3.OperationalError: no such table: slices
+FAILED tests/test_refresh.py::test_cycle_gc_treats_zero_table_index_as_empty
+1 failed, 2 passed, 15 deselected in 1.21s
+```
 
 **AFTER**: [same command, post-change] OR [verbatim excerpt of the new content]
 
