@@ -14,15 +14,15 @@
 
 | Check | Result | Notes / output snippet |
 |-------|--------|------------------------|
-| **New test(s) cover Acceptance Criteria (file paths pasted)** | ☐ pass / ☐ fail | [test file path(s) — required before Done] |
-| Verification command run | ☐ pass / ☐ fail | [paste actual output] |
-| Negative cases hold | ☐ pass / ☐ fail | |
-| verify | ☐ pass / ☐ fail / ☐ N/A | [what was observed — must literally state "pass" or "fail" here too, e.g. "skill run, feature confirmed working — pass": the merge gate scans this Notes column for the word "pass", not just the Result column] |
-| Review scope bounded to the change's blast radius (affected set, not whole repo) | ☐ pass / ☐ fail | [what was reviewed vs. skipped, and why] |
-| Full smoke suite still green (no regression) | ☐ pass / ☐ fail | |
-| **UI: Visual regression (diff or verdict pasted)** | ☐ pass / ☐ fail / ☐ N/A | [screenshot path or LLM verdict — required for UI tasks, Hard-Stop Gate 6] |
-| **UI: Design-system compliance (tokens/colors/typography verified)** | ☐ pass / ☐ fail / ☐ N/A | [method used + output] |
-| **UI: Responsiveness at target viewports** | ☐ pass / ☐ fail / ☐ N/A | [viewports tested, any overflow findings] |
+| **New test(s) cover Acceptance Criteria (file paths pasted)** | pass | `tests/test_isolation.py` (8 tests: home under tmp, guard quiet without home / ignores models, blames fake-model index, blames temp-root and zero-table index, ignores service writes, blames fake embed-cache rows, subprocess session exits 1 with `HOME GUARD` on a simulated real-home write, subprocess session exits 0 when clean); `uv run pytest -q tests/test_isolation.py` -> `8 passed in 0.44s` |
+| Verification command run | pass | 2026-10-21T08:23:34Z, Docker service running, `-shm`/`-wal` excluded: snapshot (`find ~/.easy-context -path '*/models' -prune -o -printf '%p %T@\n' \| sort`) before, `uv run pytest -q` -> `413 passed, 3 skipped, 6 warnings in 29.12s`, snapshot after, diff -> empty. An earlier run (08:22:17) showed mtime bumps on 20+ EXISTING repo-*/kitchd-* dirs, all stamped within one second (1792570945.9): the service's timed refresh, no new paths, so not a test leak. |
+| Negative cases hold | pass | guard trips on fake-model index, temp-root index, zero-table index, fake embed-cache rows; stays quiet for missing home, `models/`, existing-dir edits, `-wal`/`-shm`, real-project new dir. With only conftest (test_refresh fix stashed) the original leaking test no longer reaches the real home (2 runs, no new dirs). |
+| verify | ☐ pass / ☐ fail / ☐ N/A (Supervisor) | [what was observed — must literally state "pass" or "fail" here too, e.g. "skill run, feature confirmed working — pass": the merge gate scans this Notes column for the word "pass", not just the Result column] |
+| Review scope bounded to the change's blast radius (affected set, not whole repo) | ☐ pass / ☐ fail | (Supervisor) test-only: `tests/conftest.py`, `tests/home_guard.py`, `tests/test_isolation.py`, one test in `tests/test_refresh.py`; nothing under `src/` |
+| Full smoke suite still green (no regression) | pass | `413 passed, 3 skipped, 6 warnings in 29.12s`; `uv run ruff check tests` -> `All checks passed!` |
+| **UI: Visual regression (diff or verdict pasted)** | N/A | pure test-infrastructure task, no UI |
+| **UI: Design-system compliance (tokens/colors/typography verified)** | N/A | no UI |
+| **UI: Responsiveness at target viewports** | N/A | no UI |
 
 ---
 
@@ -57,9 +57,17 @@ Cause (hypothesis, confirmed by the AFTER diff): that test builds `JobRunner(emb
 
 Excluded from the diffs: `-shm`/`-wal` files (Docker service), the `indexes` parent-dir mtime (changes when any child is added), `~/.easy-context/models` (pruned by find), and index files of real projects (kitchd-*) that the service touches. Nothing under the real home was deleted or modified by this QA run, except that the leaks themselves added new repo-* dirs (listed above) for the Supervisor's cleanup.
 
-**AFTER**: [same command, post-change] OR [verbatim excerpt of the new content]
+**AFTER** (2026-10-21T08:23:34Z, same snapshot method, Docker service running):
 
-**DELTA**: [one sentence — what a user can now do that they could not before]
+```
+$ uv run pytest -q
+413 passed, 3 skipped, 6 warnings in 29.12s
+$ diff ec-before ec-after | grep -v -- '-shm\|-wal'     # empty
+```
+
+Also: `test_refresh.py` alone, 2 runs with only the conftest in place (the test fix stashed): no new dirs, versus a new `repo-*` dir on every run BEFORE. Fix: `tests/conftest.py` (session sink + per-test tmp home + `pytest_sessionfinish` guard via `tests/home_guard.py`) and `test_cycle_gc_keeps_hashes_a_project_references` now uses the `runner` fixture, which joins the job queue.
+
+**DELTA**: The suite can no longer pollute `~/.easy-context` (a straggling worker thread now lands in a temp sink), and if any test still writes a fake-model or temp-root index there, the run exits non-zero and names the path.
 
 **WITNESS**: [who ran it and when — derived from `memory/event-trace/Txxx.jsonl`, never the
 implementing agent alone]

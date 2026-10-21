@@ -329,10 +329,10 @@ def test_gc_removes_unreferenced_and_runs_daily(tmp_path):
     assert cache_hashes(cache) == {"keep"}
 
 
-def test_cycle_gc_keeps_hashes_a_project_references(tmp_path):
+def test_cycle_gc_keeps_hashes_a_project_references(tmp_path, runner):
     root = make_files(tmp_path / "repo", 2)
     p, emb = project(root), FakeEmbedder()
-    r = JobRunner(emb)
+    r = runner(emb)  # fixture joins the queue: cycle() queues a job that must not outlive the test
     index_now(r, p)
     seed_cache(config.embed_cache_file(), ["orphan-hash"], model=emb.model_id)
     used = cache_hashes(config.embed_cache_file()) - {"orphan-hash"}
