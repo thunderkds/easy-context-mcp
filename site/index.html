@@ -93,7 +93,6 @@
   .tool-list code { font-weight: 700; margin-right: .4rem; }
 
   @media (min-width: 768px) {
-    .cols { grid-template-columns: minmax(0,1fr) minmax(0,1fr); }
     .tool-list { grid-template-columns: 1fr 1fr; }
   }
   @media (min-width: 900px) {
@@ -146,7 +145,7 @@
 
 <section id="before-after"><div class="wrap">
   <h2>Before and after</h2>
-  <p>One real query on this repo: <span class="query" data-fact="query">how does the server bind a request to a project root</span></p>
+  <p>One real query on this repo's <code>src/</code>: <span class="query" data-fact="query">how does the server bind a request to a project root</span></p>
   <div class="bars">
     <div class="bar-row">
       <div class="label"><span>Open the whole files</span><span><code data-fact="whole_file_chars">26,904</code> characters, <span data-fact="file_count">3</span> files</span></div>
@@ -172,6 +171,7 @@
 cd easy-context-mcp
 uv sync
 claude mcp add easy-context -- uv run --directory /path/to/easy-context-mcp easy-context-mcp</pre>
+      <p class="muted">Replace <code>/path/to/easy-context-mcp</code> with the absolute path of your clone.</p>
     </div>
     <div>
       <h3>Docker service mode</h3>
