@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>easy-context-mcp: slices of your project, not whole files</title>
+<meta name="description" content="Index once. Search by meaning. Navigate by relations. Return slices with path + lines.">
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
+<style>
+  :root {
+    --bg:         #0a0a12;
+    --surface:    #111128;
+    --surface2:   #16162e;
+    --border:     #1e1e42;
+    --text:       #e2e2f0;
+    --muted:      #8080b0;
+    --cyan:       #00d4ff;
+    --green:      #00ff88;
+    --amber:      #ffb800;
+    --purple:     #a855f7;
+    --purple-text: #ae5ff8;
+    --cyan-dim:   rgba(0,212,255,.12);
+    --green-dim:  rgba(0,255,136,.12);
+    --amber-dim:  rgba(255,184,0,.12);
+    --purple-dim: rgba(168,85,247,.12);
+    --glow:       0 0 24px rgba(0,212,255,.08), 0 4px 24px rgba(0,0,0,.5);
+    --measure:    64rem;
+    --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+  }
+  * { box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  body {
+    margin: 0; background: var(--bg); color: var(--text);
+    font: 1rem/1.6 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  }
+  .wrap { max-width: var(--measure); margin: 0 auto; padding: 0 1.25rem; }
+  section, header, footer { padding: 2.5rem 0; border-bottom: 1px solid var(--border); }
+  footer { border-bottom: 0; color: var(--muted); }
+  h1, h2, h3 { line-height: 1.2; margin: 0 0 .75rem; }
+  h1 { font-size: clamp(2rem, 6vw, 3rem); color: var(--cyan); }
+  h2 { font-size: 1.5rem; }
+  h3 { font-size: 1.1rem; }
+  p { margin: 0 0 .9rem; }
+  a { color: var(--cyan); }
+  code, pre { font-family: var(--mono); }
+  code { color: var(--green); font-size: .92em; }
+  .lead { font-size: 1.25rem; color: var(--text); }
+  .muted { color: var(--muted); }
+  .term { color: var(--purple-text); font-weight: 600; }
+  .skip-link { position: absolute; left: -999px; top: 0; background: var(--surface2); padding: .5rem 1rem; }
+  .skip-link:focus { left: 0; z-index: 10; }
+  a:focus-visible, .skip-link:focus-visible { outline: 2px solid var(--amber); outline-offset: 2px; }
+  .cta { display: inline-block; margin-top: .5rem; padding: .55rem 1.1rem; border: 1px solid var(--cyan);
+    border-radius: .4rem; background: var(--cyan-dim); text-decoration: none; font-weight: 600; }
+
+  /* flow diagram */
+  .lanes { display: grid; gap: 1.25rem; margin-top: 1.25rem; }
+  .lane { background: var(--surface); border: 1px solid var(--border); border-radius: .75rem;
+    padding: 1.1rem 1.1rem 1.25rem; box-shadow: var(--glow); }
+  .lane[data-lane-box="index"] { border-top: 3px solid var(--purple); }
+  .lane[data-lane-box="ask"] { border-top: 3px solid var(--green); }
+  .lane h3 { margin-bottom: .25rem; }
+  .lane[data-lane-box="index"] h3 { color: var(--purple-text); }
+  .lane[data-lane-box="ask"] h3 { color: var(--green); }
+  .lane .note { color: var(--muted); font-size: .92rem; margin-bottom: 1rem; }
+  .steps { list-style: none; margin: 0; padding: 0; }
+  .steps li { position: relative; background: var(--surface2); border: 1px solid var(--border);
+    border-radius: .5rem; padding: .6rem .8rem; margin-bottom: 1.5rem; display: grid; gap: .1rem; }
+  .steps li:last-child { margin-bottom: 0; }
+  .steps li:not(:last-child)::after { content: "\2193"; position: absolute; left: 50%; bottom: -1.5rem;
+    transform: translateX(-50%); color: var(--cyan); font-size: 1.1rem; line-height: 1.5rem; }
+  .steps .name { font-family: var(--mono); font-weight: 700; color: var(--text); }
+  .steps .caption { color: var(--muted); font-size: .92rem; }
+  .steps li[data-tool-step] .name { color: var(--green); }
+
+  /* before / after */
+  .bars { display: grid; gap: 1rem; margin: 1.25rem 0; }
+  .bar-row .label { display: flex; justify-content: space-between; gap: 1rem; flex-wrap: wrap; margin-bottom: .3rem; }
+  .bar { height: 1.1rem; border-radius: .3rem; min-width: .5rem; }
+  .bar[data-bar="before"] { background: var(--amber); }
+  .bar[data-bar="after"] { background: var(--green); }
+  .big { font-size: 1.6rem; font-weight: 700; color: var(--green); }
+  .query { font-family: var(--mono); background: var(--surface); border: 1px solid var(--border);
+    border-radius: .4rem; padding: .15rem .5rem; overflow-wrap: anywhere; }
+
+  /* install + tools */
+  .cols { display: grid; gap: 1.25rem; }
+  .cols > div, .lanes > div { min-width: 0; }
+  pre { background: var(--surface); border: 1px solid var(--border); border-radius: .5rem;
+    padding: .9rem 1rem; margin: 0 0 .75rem; overflow-x: auto; font-size: .88rem; line-height: 1.5; }
+  .tool-list { list-style: none; margin: 0; padding: 0; display: grid; gap: .6rem; }
+  .tool-list li { background: var(--surface); border: 1px solid var(--border); border-radius: .5rem; padding: .6rem .8rem; }
+  .tool-list code { font-weight: 700; margin-right: .4rem; }
+
+  @media (min-width: 768px) {
+    .tool-list { grid-template-columns: 1fr 1fr; }
+  }
+  @media (min-width: 900px) {
+    .lanes { grid-template-columns: minmax(0,1fr) minmax(0,1fr); align-items: start; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    html { scroll-behavior: auto; }
+  }
+</style>
+</head>
+<body>
+<a class="skip-link" href="#flow">Skip to the flow diagram</a>
+<main>
+<header id="hero"><div class="wrap">
+  <h1>easy-context-mcp</h1>
+  <p class="lead pitch">Index once. Search by meaning. Navigate by relations. Return slices with path + lines.</p>
+  <p>Coding agents spend tokens reading whole files to find one function. easy-context-mcp is a local MCP server that
+  hands the agent only the part it needs. A <span class="term">slice</span> is a piece of one file (a function, a
+  Markdown section or a block of lines), returned with its path and line range.</p>
+  <a class="cta" href="https://github.com/thunderkds/easy-context-mcp">View on GitHub</a>
+</div></header>
+
+<section id="flow"><div class="wrap">
+  <h2>The flow</h2>
+  <p>A <span class="term">project</span> is one repo or git worktree. Each project has one <span class="term">index</span>:
+  a single SQLite file that holds its slices, their embeddings and the links between them. You build it once. The agent then asks it questions.</p>
+  <div class="lanes">
+    <div class="lane" data-lane-box="index">
+      <h3 data-lane="index">Index once</h3>
+      <p class="note">Runs in the background. Nothing leaves your machine.</p>
+      <ol class="steps">
+        <li data-lane="index" data-step="index_path" data-tool-step><span class="name">index_path</span><span class="caption">The agent starts an index job for the project.</span></li>
+        <li data-lane="index" data-step="walk + skip"><span class="name">walk + skip</span><span class="caption">Read the files. Skip secrets, binaries and oversize files.</span></li>
+        <li data-lane="index" data-step="slices"><span class="name">slices</span><span class="caption">Cut each file by code symbol, Markdown heading or line window.</span></li>
+        <li data-lane="index" data-step="embed locally"><span class="name">embed locally</span><span class="caption">Turn each slice into a vector with a local model. No cloud.</span></li>
+        <li data-lane="index" data-step="SQLite + edges"><span class="name">SQLite + edges</span><span class="caption">Save slices, vectors and graph edges in one file per project.</span></li>
+      </ol>
+    </div>
+    <div class="lane" data-lane-box="ask">
+      <h3 data-lane="ask">Ask, as often as you like</h3>
+      <p class="note">Each call reads the index from the first lane.</p>
+      <ol class="steps">
+        <li data-lane="ask" data-step="search_semantic" data-tool-step><span class="name">search_semantic</span><span class="caption">Search by meaning. Get the top slices, each with path and lines.</span></li>
+        <li data-lane="ask" data-step="get_slice" data-tool-step><span class="name">get_slice</span><span class="caption">Fetch the full text of one slice.</span></li>
+        <li data-lane="ask" data-step="get_related" data-tool-step><span class="name">get_related</span><span class="caption">Walk 1 hop to neighbours: calls, imports, links, headings.</span></li>
+      </ol>
+    </div>
+  </div>
+</div></section>
+
+<section id="before-after"><div class="wrap">
+  <h2>Before and after</h2>
+  <p>One real query on this repo's <code>src/</code>: <span class="query" data-fact="query">how does the server bind a request to a project root</span></p>
+  <div class="bars">
+    <div class="bar-row">
+      <div class="label"><span>Open the whole files</span><span><code data-fact="whole_file_chars">26,904</code> characters, <span data-fact="file_count">3</span> files</span></div>
+      <div class="bar" data-bar="before" style="width:100%"></div>
+    </div>
+    <div class="bar-row">
+      <div class="label"><span>Read the returned slices</span><span><code data-fact="slice_chars">2,410</code> characters, <span data-fact="slice_count">5</span> slices</span></div>
+      <div class="bar" data-bar="after" style="width:9%"></div>
+    </div>
+  </div>
+  <p><span class="big"><span data-fact="ratio">11.2</span> times</span> less text to read.</p>
+  <p class="muted">Measured at commit <code data-fact="commit">ce45eb2</code> on <span data-fact="date">2026-10-21</span>. Counted in characters, not tokens.</p>
+</div></section>
+
+<section id="install"><div class="wrap">
+  <h2>Install</h2>
+  <p>You need a local clone. There is no PyPI package yet. Pick one mode.</p>
+  <div class="cols">
+    <div>
+      <h3>Stdio mode</h3>
+      <p class="muted">One server per Claude Code session. Needs Python 3.10+ and <code>uv</code>.</p>
+<pre>git clone https://github.com/thunderkds/easy-context-mcp.git
+cd easy-context-mcp
+uv sync
+claude mcp add easy-context -- uv run --directory /path/to/easy-context-mcp easy-context-mcp</pre>
+      <p class="muted">Replace <code>/path/to/easy-context-mcp</code> with the absolute path of your clone.</p>
+    </div>
+    <div>
+      <h3>Docker service mode</h3>
+      <p class="muted">One shared server for every repo on the machine. Linux with Docker.</p>
+<pre>mkdir -p ~/.easy-context
+export EASY_CONTEXT_WORKSPACE=/abs/parent/of/your/repos
+export UID GID="$(id -g)"   # the container runs as your user
+docker compose up -d --build service
+claude mcp add --transport http easy-context http://127.0.0.1:8767/mcp \
+  --header 'X-Easy-Context-Root: ${PWD}'</pre>
+    </div>
+  </div>
+  <p class="muted">Keep the single quotes around <code>${PWD}</code> so the shell does not expand it. Then ask the agent to call <code>index_path</code>.</p>
+</div></section>
+
+<section id="tools"><div class="wrap">
+  <h2>Six tools</h2>
+  <ul class="tool-list">
+    <li data-tool="index_path"><code>index_path</code>Build or refresh the index of a project in the background.</li>
+    <li data-tool="search_semantic"><code>search_semantic</code>Find slices by meaning. Returns path, lines and a score.</li>
+    <li data-tool="get_slice"><code>get_slice</code>Return the full text of one slice.</li>
+    <li data-tool="get_related"><code>get_related</code>List 1-hop neighbours of a slice or file.</li>
+    <li data-tool="list_indexes"><code>list_indexes</code>Show every index on the machine and its job status.</li>
+    <li data-tool="get_stats"><code>get_stats</code>Show counts and how much text the server has served.</li>
+  </ul>
+</div></section>
+</main>
+
+<footer id="footer"><div class="wrap">
+  <p><a href="https://github.com/thunderkds/easy-context-mcp">GitHub</a> ·
+  <a href="https://github.com/thunderkds/easy-context-mcp#readme">README</a> for caps, settings and limits.</p>
+  <p>Also from the easy family:
+  <a href="https://personal-agentic-claude.vercel.app/">Easy Kit</a> ·
+  <a href="https://easy-verifier.vercel.app/">easy-verifier</a></p>
+</div></footer>
+</body>
+</html>

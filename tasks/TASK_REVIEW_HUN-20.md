@@ -14,15 +14,18 @@
 
 | Check | Result | Notes / output snippet |
 |-------|--------|------------------------|
-| **New test(s) cover Acceptance Criteria (file paths pasted)** | ☐ pass / ☐ fail | [test file path(s) — required before Done] |
-| Verification command run | ☐ pass / ☐ fail | [paste actual output] |
-| Negative cases hold | ☐ pass / ☐ fail | |
-| verify | ☐ pass / ☐ fail / ☐ N/A | [what was observed — must literally state "pass" or "fail" here too, e.g. "skill run, feature confirmed working — pass": the merge gate scans this Notes column for the word "pass", not just the Result column] |
-| Review scope bounded to the change's blast radius (affected set, not whole repo) | ☐ pass / ☐ fail | [what was reviewed vs. skipped, and why] |
-| Full smoke suite still green (no regression) | ☐ pass / ☐ fail | |
-| **UI: Visual regression (diff or verdict pasted)** | ☐ pass / ☐ fail / ☐ N/A | [screenshot path or LLM verdict — required for UI tasks, Hard-Stop Gate 6] |
-| **UI: Design-system compliance (tokens/colors/typography verified)** | ☐ pass / ☐ fail / ☐ N/A | [method used + output] |
-| **UI: Responsiveness at target viewports** | ☐ pass / ☐ fail / ☐ N/A | [viewports tested, any overflow findings] |
+| **New test(s) cover Acceptance Criteria (file paths pasted)** | ☑ pass | tests/test_site_content.py, tests/test_site_theme.py, tests/test_site_deploy_config.py (36 tests; 9 are negative cases) |
+| Verification command run | ☑ pass | `36 passed in 0.08s` (site tests) then `405 passed, 3 skipped, 6 warnings in 30.49s` (full suite), re-run after Stage 4 P3 fixes, 2026-10-21 |
+| Negative cases hold | ☑ pass | renamed/seventh tool, edited README command, changed pitch, changed snapshot, leak scan, raw colour, light scheme, external script, changed token, extra .vercelignore line: all fail as expected |
+| verify | ☑ pass | /verify run 2026-10-21 (user-invoked), cold start, no verifier skill — pass. site/ served on 127.0.0.1:18920 (python http.server, like Vercel outputDirectory): / 200 text/html, /favicon.svg 200 image/svg+xml, /sample-run.json 200 application/json; /nope.html, /../README.md, /../memory/MEMORY.md 404. Headless google-chrome at 1280 and 320 px: all six sections render, two lanes side by side at 1280 and stacked at 320, no horizontal page scroll; only requests in the server log are / and /favicon.svg. scripts/site_sample_run.py re-run in a throwaway detached checkout (13.8 s): every snapshot field identical except `commit` (2750b05 vs ce45eb2, expected); nothing new under ~/.easy-context. Not observed: the #install fragment scroll (Chrome CLI --screenshot ignores fragments) |
+| Review scope bounded to the change's blast radius (affected set, not whole repo) | ☑ pass | the 10 files of main...hun-20-landing-site (site/*, scripts/site_sample_run.py, vercel.json, .vercelignore, tests/test_site_*.py, this file) plus their sources of truth README.md and src/easy_context_mcp/server.py (read only); lane_check: C2, 9 files, 956 lines, EXCEEDS (lines 956 > 500) — 612 of them tests, label kept |
+| Code review (Stage 4) | ☑ pass | P0 0 · P1 1 (process: first Startup-reads line omitted PROJECT_SPEC.md, agents/frontend.md read partly — agent re-read both in full in the fix-up round) · P2 0 · P3 3, all fixed in 52865e2 on user approval (install blocks stacked, `src/` scope wording, replace-path note). Supervisor re-ran 36 site tests + full suite 405 passed and viewed 1280/375 screenshots. Report: reports/code-review_hun-20-landing-site_20261021T105347.html |
+| Security review | ☐ N/A | Risk Low: static page, no input handling, no secrets; AC 6 safety scan (host paths, emails, token shapes, link allowlist, no external script) is an automated test; `.vercelignore` allowlist keeps memory/, tasks/, reports/, src/ out of CLI uploads |
+| easy-verifier confidence (advisory, PROJECT_SPEC Stage 4 Add-on) | overall: 74 · change_risk: 0 | changes scope main...HEAD, change_kind feature: overall 74 (architecture 100, blast-radius 100, code-quality 87, requirement-fidelity 67, test-strategy 60, security 30; 7 of 13 abstained). change_risk 0 = new_code_without_test_share 1.0 on scripts/site_sample_run.py: no file-name-paired test (known naming artefact) — its output is pinned by tests/test_site_content.py, but the script itself is not executed by a test (needs the model). security 30 = known false positives. Task scope: overall 67 (requirement-fidelity only; 12 of 13 abstained). Report: reports/easy-verifier_HUN-20_20261021T105427.html |
+| Full smoke suite still green (no regression) | ☑ pass | `405 passed, 3 skipped, 6 warnings in 30.49s` (after P3 fixes) |
+| **UI: Visual regression (diff or verdict pasted)** | ☑ pass | Headless chromium screenshots reports/HUN-20/site-{375,768,1280}.png viewed by implementer and by the Supervisor (1280 + 375, before and after the P3 fixes): sections in AC 1 order; two flow lanes with arrows, labels not clipped; after P3 fixes: install blocks stacked full width, query line says `src/`, path-replace note under the stdio block |
+| **UI: Design-system compliance (tokens/colors/typography verified)** | ☑ pass | tests/test_site_theme.py pins the sibling :root tokens (values identical, no deviation), colours only via var(), AA contrast >= 4.5 computed for text/muted/cyan/green/amber on bg/surface/surface2; system font + monospace for commands |
+| **UI: Responsiveness at target viewports** | ☑ pass | 375 / 768 / 1280: no page horizontal scroll; lanes stacked at 375 and 768, side by side at 1280; install blocks stacked full width at every width, the Docker block now shows in full at 1280; the long stdio `claude mcp add` line still scrolls inside its box at 375 and 768 |
 
 ---
 
@@ -33,10 +36,26 @@
 > **before any implementation commit exists**; if it does not (docs, templates, skill-instruction
 > text), BEFORE is the **verbatim prior content** of what changed — a quoted excerpt, not a command.
 
-**BEFORE**: [pasted timestamped command output showing the thing absent/failing, captured before the
-first implementation commit] OR [verbatim excerpt of the prior content, for non-executable changes]
+**BEFORE**: captured 2026-10-21T03:45:13Z (`date -u`), worktree `easy-context-mcp-HUN-20`, before any implementation commit:
 
-**AFTER**: [same command, post-change] OR [verbatim excerpt of the new content]
+```
+$ uv run pytest tests/test_site_content.py tests/test_site_theme.py tests/test_site_deploy_config.py -q
+ERROR: file or directory not found: tests/test_site_content.py
+
+no tests ran in 0.00s
+$ ls site
+ls: cannot access 'site': No such file or directory
+```
+
+**AFTER**: same command, 2026-10-21 (after Stage 4 P3 fixes):
+
+```
+$ uv run pytest tests/test_site_content.py tests/test_site_theme.py tests/test_site_deploy_config.py -q
+....................................                                     [100%]
+36 passed in 0.08s
+$ uv run pytest -q
+405 passed, 3 skipped, 6 warnings in 30.49s
+```
 
 **DELTA**: [one sentence — what a user can now do that they could not before]
 
