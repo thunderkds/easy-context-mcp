@@ -9,7 +9,6 @@
 ## Board
 
 ### Todo
-- [ ] **HUN-59** — Symbol coverage: top-level constants as symbols, decorator calls linked to the decorated symbol | Backend-Implementer | C2 | Risk: Medium | P1 | @hungnh1110 | Guide: `tasks/TASK_GUIDE_HUN-59.md`
 - [ ] **HUN-60** — Lean symbol answers (search_semantic mode="symbol", get_related lean) and symbol-first usage policy | Backend-Implementer | C2 | Risk: Medium | P1 | @hungnh1110 | Guide: `tasks/TASK_GUIDE_HUN-60.md`
 
 ### In Progress
@@ -37,6 +36,7 @@
 - [x] **HUN-31** — Test isolation: no test may write into the real ~/.easy-context | QA-Automation-Agent | C2 | Risk: Medium | P2 | @hungnh1110 | Guide: `tasks/TASK_GUIDE_HUN-31.md`
 - [x] **HUN-54** — Stale hit check: drop hits of deleted files, mark hits of changed files \`stale: true\` | Backend-Implementer | C2 | Risk: Medium | P1 | @hungnh1110 | Guide: `tasks/TASK_GUIDE_HUN-54.md`
 - [x] **HUN-55** — Usage policy follows the benchmark (grep by default, worktree root) and get_related counts unresolved callers | Backend-Implementer | C2 | Risk: Low | P1 | @hungnh1110 | Guide: `tasks/TASK_GUIDE_HUN-55.md`
+- [x] **HUN-59** — Symbol coverage: top-level constants as symbols, decorator calls linked to the decorated symbol | Backend-Implementer | C2 | Risk: Medium | P1 | @hungnh1110 | Guide: `tasks/TASK_GUIDE_HUN-59.md`
 
 ### Closed (will not do)
 
