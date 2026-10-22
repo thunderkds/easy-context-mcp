@@ -605,3 +605,129 @@ def test_never_indexed_response_has_zero_stale_dropped(tmp_path, home):
     root.mkdir()
     res = tools.search_semantic(project(root), QUERY, embedder=FakeEmbedder())
     assert res["stale_dropped"] == 0
+
+
+# --- HUN-60 / FR-032: search_semantic(mode="symbol") ----------------------------------------------
+
+SYMBOL_FILES = {
+    "ip.py": "def getClientIp(req):\n    return req.ip\n",
+    "shop/inventory.py": "class Inventory:\n    def add(self, item):\n        return item\n",
+    "shop/cart.py": "class Cart:\n    def add(self, item):\n        return item\n",
+}
+
+
+class RaisingEmbedder:
+    model_id = "fake-bow-256"
+
+    def embed(self, texts):
+        raise AssertionError("mode='symbol' must not embed")
+
+
+@pytest.fixture
+def symbol_project(tmp_path):
+    root = tmp_path / "sym"
+    for name, text in SYMBOL_FILES.items():
+        (root / name).parent.mkdir(parents=True, exist_ok=True)
+        (root / name).write_text(text)
+    p = project(root)
+    tools.index_path(p, ".", embedder=FakeEmbedder())
+    return p, root
+
+
+def symbol_search(p, query, **kw):
+    return tools.search_semantic(p, query, embedder=RaisingEmbedder(), mode="symbol", **kw)
+
+
+def test_symbol_mode_never_embeds_and_returns_lean_exact_matches(symbol_project):
+    p, _ = symbol_project
+    out = symbol_search(p, "add")
+    assert out["exact_count"] == 2 and "note" not in out
+    assert [h["symbol"] for h in out["hits"]] == ["Cart.add", "Inventory.add"]
+    for h in out["hits"]:
+        assert h["match"] == "exact" and h["kind"] == "method"
+        assert {"id", "path", "start_line", "end_line"} <= set(h)
+        assert not {"text", "preview", "score"} & set(h)
+    assert {h["path"] for h in out["hits"]} == {"shop/cart.py", "shop/inventory.py"}
+
+
+def test_symbol_mode_dotted_query_is_exact_for_the_qualified_name(symbol_project):
+    p, _ = symbol_project
+    out = symbol_search(p, "Inventory.add")
+    assert [(h["symbol"], h["match"]) for h in out["hits"]] == [("Inventory.add", "exact")]
+    assert out["exact_count"] == 1
+
+
+def test_symbol_mode_prefix_only_name_has_zero_exact_and_a_note(symbol_project):
+    p, _ = symbol_project
+    out = symbol_search(p, "getClient")
+    assert out["exact_count"] == 0
+    assert [(h["symbol"], h["match"]) for h in out["hits"]] == [("getClientIp", "prefix")]
+    assert out["note"] == tools.SYMBOL_NOTE
+    assert out["note"].count(". ") == 0 and "top-level constants" in out["note"]
+
+
+def test_symbol_mode_orders_exact_before_prefix(tmp_path):
+    root = tmp_path / "ord"
+    root.mkdir()
+    (root / "a.py").write_text("def add_item():\n    return 1\n\n\ndef add():\n    return 2\n")
+    p = project(root)
+    tools.index_path(p, ".", embedder=FakeEmbedder())
+    out = symbol_search(p, "add")
+    assert [(h["symbol"], h["match"]) for h in out["hits"]] == [("add", "exact"), ("add_item", "prefix")]
+    assert out["exact_count"] == 1
+
+
+def test_symbol_mode_no_match_is_empty_with_note(symbol_project):
+    p, _ = symbol_project
+    out = symbol_search(p, "kafka")
+    assert out["hits"] == [] and out["exact_count"] == 0 and out["note"] == tools.SYMBOL_NOTE
+
+
+def test_symbol_mode_never_indexed_project_has_the_empty_shape(tmp_path):
+    root = tmp_path / "fresh"
+    root.mkdir()
+    out = symbol_search(project(root), "add")
+    assert out["indexed"] is False and out["hits"] == [] and out["exact_count"] == 0
+
+
+def test_symbol_mode_k_and_path_prefix(symbol_project):
+    p, _ = symbol_project
+    assert len(symbol_search(p, "add", k=1)["hits"]) == 1
+    out = symbol_search(p, "add", path_prefix="shop/cart.py")
+    assert [h["symbol"] for h in out["hits"]] == ["Cart.add"]
+
+
+def test_symbol_mode_stale_check(symbol_project):
+    p, root = symbol_project
+    (root / "shop" / "cart.py").unlink()
+    (root / "shop" / "inventory.py").write_text(SYMBOL_FILES["shop/inventory.py"] + "\n# edit\n")
+    out = symbol_search(p, "add")
+    assert out["stale_dropped"] == 1
+    assert [(h["symbol"], h.get("stale")) for h in out["hits"]] == [("Inventory.add", True)]
+
+
+def test_symbol_mode_response_cap_still_applies(symbol_project, monkeypatch):
+    p, _ = symbol_project
+    monkeypatch.setenv("EASY_CONTEXT_MAX_RESPONSE_CHARS", str(tools._size(symbol_search(p, "add")) - 1))
+    out = symbol_search(p, "add")
+    assert out["dropped"] >= 1 and len(out["hits"]) >= 1
+
+
+def test_symbol_mode_counts_served_chars(symbol_project):
+    p, _ = symbol_project
+    before = tools.served_totals(p.project_id)
+    out = symbol_search(p, "add")
+    after = tools.served_totals(p.project_id)
+    assert after["slices_served_since_start"] - before["slices_served_since_start"] == 2
+    assert after["chars_served_since_start"] > before["chars_served_since_start"]
+    assert out["exact_count"] == 2
+
+
+def test_omitted_or_semantic_mode_is_unchanged_and_unknown_mode_is_an_error(symbol_project):
+    p, _ = symbol_project
+    plain = tools.search_semantic(p, "getClientIp", embedder=FakeEmbedder())
+    assert "exact_count" not in plain and "text" in plain["hits"][0] and "match" not in plain["hits"][0]
+    same = tools.search_semantic(p, "getClientIp", embedder=FakeEmbedder(), mode="semantic")
+    assert same == plain
+    with pytest.raises(ValueError, match="mode"):
+        tools.search_semantic(p, "add", embedder=FakeEmbedder(), mode="fuzzy")

@@ -216,16 +216,18 @@ Search may return **preview + truncated text** under caps; `get_slice` returns f
 ```markdown
 ## Context retrieval (easy-context)
 
-Use grep and ranged reads by default. For a known name, exact text, every caller,
-or code and its tests, grep is cheaper and just as accurate.
-Use easy-context MCP tools for questions asked by meaning ("where is X handled",
-"why did we choose X"):
-- search_semantic — find code/docs by meaning
-- get_slice — full text of one slice
-- get_related — 1-hop structure (imports, links, headings, calls)
+Find code by symbol first; grep for the rest.
+- Where is X defined: search_semantic(query="X", mode="symbol"). Trust only matches with
+  `match: "exact"`. If `exact_count` is 0, grep before you say X does not exist:
+  variables, test code and plain text are not indexed.
+- Read one symbol: get_slice(id), not the whole file.
+- Who calls X, what X calls, which tests cover X: get_related(slice_id, lean=true).
+  The list is complete only when `complete: true`. Otherwise grep the name for the rest.
+  Test files are the neighbours marked `test: true`.
+Use grep and ranged reads for exact text, strings and config keys, and whenever a
+symbol answer is not complete. Use search_semantic without mode only for questions
+asked by meaning with no keyword ("where is X handled", "why did we choose X").
 
-Callers in get_related are best-effort. Grep for the name when `unresolved_callers` > 0
-and before a rename or delete.
 A hit with `stale: true` changed on disk after indexing: read the file itself.
 In a git worktree, pass `root=<worktree path>` to every tool.
 Before first use in a project, and after a merge: index_path on the project root.
@@ -384,9 +386,10 @@ Six tools. Every tool takes an optional `root` (see above).
 | Tool | Arguments | Result |
 |---|---|---|
 | `index_path` | `path` (default `.`), `force` | Starts a background job and returns at once: `job_id`, `status`, `files_total`, `estimated_seconds`. A call while a job is active returns that job. Unchanged files are skipped unless `force`. |
-| `search_semantic` | `query`, `k` (default 5, max 100), `path_prefix` | Top-k hits: `id, path, start_line, end_line, score, preview, text, truncated`. Hits from code symbol slices also carry `symbol` and `kind`, and a `part` for a symbol split into parts. `dropped` counts hits left out by the response cap. Each hit's file is checked on disk (size + mtime): a hit whose file is gone is left out and counted in `stale_dropped`, and a hit whose file changed since indexing carries `stale: true`. `indexing: true` means a job is running and the results cover the files committed so far. |
+| `search_semantic` | `query`, `k` (default 5, max 100), `path_prefix`, `mode` | Top-k hits: `id, path, start_line, end_line, score, preview, text, truncated`. Hits from code symbol slices also carry `symbol` and `kind`, and a `part` for a symbol split into parts. `dropped` counts hits left out by the response cap. Each hit's file is checked on disk (size + mtime): a hit whose file is gone is left out and counted in `stale_dropped`, and a hit whose file changed since indexing carries `stale: true`. `indexing: true` means a job is running and the results cover the files committed so far. |
+| `search_semantic` with `mode="symbol"` | same | Symbol-name answer, no embedding call: up to k matches `id, path, start_line, end_line, symbol, kind, match`, where `match` is `exact` (the query equals the qualified name or a dotted tail) or `prefix`, exact ones first. No `text` or `preview`. `exact_count` counts the exact matches. When it is 0, a `note` says that only functions, classes, methods, interfaces and top-level constants are indexed, so grep before you conclude a name does not exist. The stale check applies. Any other `mode` is an error. |
 | `get_slice` | `slice_id` | Full text of one slice with path and lines (`truncated` if the slice cap applies). `stale: true` when the file changed or is gone since indexing; the slice is never hidden. |
-| `get_related` | `slice_id` or `path`, `limit` (default 10) | 1-hop neighbours with path and line range. Extra ones are counted in `dropped`. A neighbour whose file is gone is left out and counted in `stale_dropped`; one whose file changed carries `stale: true`. For a function or method slice the result also has `unresolved_callers`: the number of other symbols that call its name without a `calls` edge to it, so `called_by` may be incomplete when it is above 0. |
+| `get_related` | `slice_id` or `path`, `limit` (default 10), `lean` | 1-hop neighbours with path and line range. Extra ones are counted in `dropped`. A neighbour whose file is gone is left out and counted in `stale_dropped`; one whose file changed carries `stale: true`. For a function or method slice the result also has `unresolved_callers`: the number of other symbols that call its name without a `calls` edge to it, so `called_by` may be incomplete when it is above 0. With `lean` (default false), neighbours have no `preview`, neighbours in test files (`.spec.`, `.test.`, `test_*.py`, `*_test.py`, or a `tests/`, `test/`, `__tests__/` directory) carry `test: true`, and a function or method slice also has `complete`: true when `unresolved_callers` is 0. |
 | `list_indexes` | none | Every index on the machine: `project_id, root, root_exists, files, slices, last_index_at, indexing, status, job_id, files_done, files_total, eta_seconds, last_error`. |
 | `get_stats` | `project_id` | Counts, skip counts per reason from the last job, `last_index_at`, job status, and `chars_served` / `slices_served` (cumulative) plus `..._since_start` (this server process). With another project's `project_id` you get counts only, never slice text. |
 
@@ -479,16 +482,18 @@ Paste this into `CLAUDE.md` or `AGENTS.md` of a project that uses easy-context. 
 ```markdown
 ## Context retrieval (easy-context)
 
-Use grep and ranged reads by default. For a known name, exact text, every caller,
-or code and its tests, grep is cheaper and just as accurate.
-Use easy-context MCP tools for questions asked by meaning ("where is X handled",
-"why did we choose X"):
-- search_semantic — find code/docs by meaning
-- get_slice — full text of one slice
-- get_related — 1-hop structure (imports, links, headings, calls)
+Find code by symbol first; grep for the rest.
+- Where is X defined: search_semantic(query="X", mode="symbol"). Trust only matches with
+  `match: "exact"`. If `exact_count` is 0, grep before you say X does not exist:
+  variables, test code and plain text are not indexed.
+- Read one symbol: get_slice(id), not the whole file.
+- Who calls X, what X calls, which tests cover X: get_related(slice_id, lean=true).
+  The list is complete only when `complete: true`. Otherwise grep the name for the rest.
+  Test files are the neighbours marked `test: true`.
+Use grep and ranged reads for exact text, strings and config keys, and whenever a
+symbol answer is not complete. Use search_semantic without mode only for questions
+asked by meaning with no keyword ("where is X handled", "why did we choose X").
 
-Callers in get_related are best-effort. Grep for the name when `unresolved_callers` > 0
-and before a rename or delete.
 A hit with `stale: true` changed on disk after indexing: read the file itself.
 In a git worktree, pass `root=<worktree path>` to every tool.
 Before first use in a project, and after a merge: index_path on the project root.

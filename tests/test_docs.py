@@ -55,16 +55,18 @@ def test_easy_kit_policy_keeps_canonical_wording():
     canonical = (
         '## Context retrieval (easy-context)\n'
         '\n'
-        'Use grep and ranged reads by default. For a known name, exact text, every caller,\n'
-        'or code and its tests, grep is cheaper and just as accurate.\n'
-        'Use easy-context MCP tools for questions asked by meaning ("where is X handled",\n'
-        '"why did we choose X"):\n'
-        '- search_semantic — find code/docs by meaning\n'
-        '- get_slice — full text of one slice\n'
-        '- get_related — 1-hop structure (imports, links, headings, calls)\n'
+        'Find code by symbol first; grep for the rest.\n'
+        '- Where is X defined: search_semantic(query="X", mode="symbol"). Trust only matches with\n'
+        '  `match: "exact"`. If `exact_count` is 0, grep before you say X does not exist:\n'
+        '  variables, test code and plain text are not indexed.\n'
+        '- Read one symbol: get_slice(id), not the whole file.\n'
+        '- Who calls X, what X calls, which tests cover X: get_related(slice_id, lean=true).\n'
+        '  The list is complete only when `complete: true`. Otherwise grep the name for the rest.\n'
+        '  Test files are the neighbours marked `test: true`.\n'
+        'Use grep and ranged reads for exact text, strings and config keys, and whenever a\n'
+        'symbol answer is not complete. Use search_semantic without mode only for questions\n'
+        'asked by meaning with no keyword ("where is X handled", "why did we choose X").\n'
         '\n'
-        'Callers in get_related are best-effort. Grep for the name when `unresolved_callers` > 0\n'
-        'and before a rename or delete.\n'
         'A hit with `stale: true` changed on disk after indexing: read the file itself.\n'
         'In a git worktree, pass `root=<worktree path>` to every tool.\n'
         'Before first use in a project, and after a merge: index_path on the project root.'
@@ -72,6 +74,13 @@ def test_easy_kit_policy_keeps_canonical_wording():
     assert "Prefer easy-context MCP tools" not in README
     assert README.count(canonical) == 2  # section 10 and the paste-ready copy
     assert "Binding:" in README
+
+
+def test_readme_and_server_document_lean_symbol_answers():
+    server = (ROOT / "src" / "easy_context_mcp" / "server.py").read_text(encoding="utf-8")
+    for term in ("mode", "match", "exact_count", "note", "lean", "test", "complete"):
+        assert f"`{term}" in README, term
+        assert f"`{term}" in server, term
 
 
 def test_example_configs_match_both_modes():

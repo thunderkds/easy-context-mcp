@@ -70,11 +70,19 @@ def create_app(
         k: int | None = None,
         path_prefix: str | None = None,
         root: str | None = None,
+        mode: str | None = None,
     ) -> dict[str, Any]:
         """Find slices by meaning. Returns up to k hits (default 5) with path + line range.
 
         A query naming a code symbol (`Inventory.add`, `add`) ranks that symbol's slice first;
         hits from code symbol slices also carry `symbol` and `kind`.
+
+        `mode="symbol"` answers by symbol name only (no embedding): up to k matches with
+        id, path, lines, `symbol`, `kind` and `match` ("exact": the query equals the qualified
+        name or a dotted tail; "prefix"), exact ones first, no text. `exact_count` is how many
+        are exact. When it is 0 a `note` says only functions, classes, methods, interfaces and
+        top-level constants are indexed: grep before concluding a name does not exist. Read a
+        match with `get_slice`. Any other `mode` than "symbol" is an error.
 
         In a git worktree, pass `root` = the worktree path: each worktree is its own project.
         `path_prefix` (relative to the root) keeps only hits under that directory or file.
@@ -87,7 +95,8 @@ def create_app(
         """
         project = _bind(ctx, root, service_mode)
         return tools.search_semantic(
-            project, query, k, path_prefix, embedder=embedder, indexing=runner.indexing(project)
+            project, query, k, path_prefix, embedder=embedder, indexing=runner.indexing(project),
+            mode=mode,
         )
 
     @app.tool()
@@ -107,6 +116,7 @@ def create_app(
         path: str | None = None,
         limit: int = 10,
         root: str | None = None,
+        lean: bool = False,
     ) -> dict[str, Any]:
         """Fetch 1-hop related slices of one slice (`slice_id`) or one file (`path`); pass one.
 
@@ -120,10 +130,14 @@ def create_app(
         A function or method slice also gets `unresolved_callers`: how many other symbols call
         its name without a `calls` edge to it. `called_by` is best-effort; grep the name when
         it is above 0 and before a rename or delete.
+
+        `lean=true` returns the same neighbours without `preview`, marks neighbours in test
+        files `test: true`, and on a function or method slice adds `complete` (true when
+        `unresolved_callers` is 0: the caller list is then complete).
         """
         project = _bind(ctx, root, service_mode)
         return tools.get_related(
-            project, slice_id, path, limit, indexing=runner.indexing(project)
+            project, slice_id, path, limit, indexing=runner.indexing(project), lean=lean
         )
 
     @app.tool()

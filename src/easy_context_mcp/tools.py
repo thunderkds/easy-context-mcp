@@ -3,6 +3,7 @@
 import hashlib
 import json
 import os
+import re
 import stat
 import threading
 from collections.abc import Callable
@@ -258,6 +259,21 @@ def _stale_field(fresh: dict[str, str], path: str) -> dict[str, Any]:
     return {"stale": True} if fresh.get(path) == "changed" else {}
 
 
+SYMBOL_NOTE = (
+    "Only functions, classes, methods, interfaces and top-level constants are indexed, "
+    "so grep before concluding a name does not exist."
+)
+_TEST_PATH = re.compile(
+    r"(^|/)(tests?|__tests__)/|\.(spec|test)\.|(^|/)test_[^/]*\.py$|_test\.py$"
+)
+
+
+def is_test_path(path: str) -> bool:
+    """True for a test file: `.spec.` / `.test.` names, `test_*.py`, `*_test.py`, or a
+    `tests/`, `test/`, `__tests__/` directory."""
+    return bool(_TEST_PATH.search(path))
+
+
 def _size(response: dict[str, Any]) -> int:
     """Characters of the response as FastMCP serializes it (indent=2 JSON text)."""
     return len(json.dumps(response, indent=2, ensure_ascii=False))
@@ -271,8 +287,16 @@ def search_semantic(
     *,
     embedder: Embedder,
     indexing: bool = False,
+    mode: str | None = None,
 ) -> dict[str, Any]:
-    """Top-k hits (k clamped to MAX_K) from the last committed state; `indexing` marks a job."""
+    """Top-k hits (k clamped to MAX_K) from the last committed state; `indexing` marks a job.
+
+    `mode="symbol"` matches symbol names only (no embedding): lean hits with `match` "exact" or
+    "prefix", `exact_count`, and a `note` when nothing matches exactly. `None` / "semantic" is
+    the default search by meaning.
+    """
+    if mode not in (None, "semantic", "symbol"):
+        raise ValueError(f"unknown mode {mode!r}: use 'symbol' or omit it")
     if not query or not query.strip():
         raise ValueError("query must be a non-empty string")
     if k is None:
@@ -285,8 +309,11 @@ def search_semantic(
 
     store = ProjectStore.open_read(config.index_file(project.project_id))
     if store is None:
-        return {**_envelope(project), "indexed": False, "indexing": indexing, "hits": [],
-                "dropped": 0, "stale_dropped": 0}
+        empty = {**_envelope(project), "indexed": False, "indexing": indexing, "hits": [],
+                 "dropped": 0, "stale_dropped": 0}
+        return {**empty, "exact_count": 0, "note": SYMBOL_NOTE} if mode == "symbol" else empty
+    if mode == "symbol":
+        return _symbol_search(project, store, query, k, prefix, response_cap, indexing)
     with closing(store):
         store.check_model(embedder.model_id)
         qvec = normalize(embedder.embed([query.strip()]))[0]
@@ -323,6 +350,41 @@ def search_semantic(
     return response
 
 
+def _symbol_search(
+    project: Project, store: ProjectStore, query: str, k: int, prefix: str, response_cap: int,
+    indexing: bool,
+) -> dict[str, Any]:
+    """`search_semantic(mode="symbol")`: name matches only, exact first, lean hits."""
+    with closing(store):
+        matches = store.name_matches(query)
+        rows = store.get_slices(list(matches))
+        found = sorted(
+            (-matches[sid], r[1], r[2], sid) for sid, r in rows.items()
+            if not prefix or r[1] == prefix or r[1].startswith(prefix + "/")
+        )[:k]
+        stored = store.file_stats(sorted({rows[f[3]][1] for f in found}))
+    fresh = _freshness(project.root, stored)
+    hits, stale_dropped = [], 0
+    for neg_score, path, start, sid in found:
+        if fresh.get(path, "ok") == "missing":
+            stale_dropped += 1
+            continue
+        _, _, _, end, _, symbol, kind, part = rows[sid]
+        hits.append({
+            "id": sid, "path": path, "start_line": start, "end_line": end,
+            **_symbol_fields(symbol, kind, part),
+            "match": "exact" if neg_score == -2.0 else "prefix",
+            **_stale_field(fresh, path),
+        })
+    exact = sum(h["match"] == "exact" for h in hits)
+    head = {**_envelope(project), "indexed": True, "indexing": indexing,
+            "stale_dropped": stale_dropped, "exact_count": exact,
+            **({} if exact else {"note": SYMBOL_NOTE})}
+    response = _fit_response(head, hits, response_cap)
+    record_served(project, len(json.dumps(response["hits"])), len(response["hits"]))
+    return response
+
+
 def _fit_response(
     head: dict[str, Any], hits: list[dict], cap: int, key: str = "hits"
 ) -> dict[str, Any]:
@@ -339,8 +401,9 @@ def _fit_response(
         if not kept:
             hit = {**hit, "truncated": True}
             response = {**head, key: [hit], "dropped": len(hits) - 1}
-            field = "text" if "text" in hit else "preview"  # related items carry only a preview
-            while hit[field] and _size(response) > cap:
+            # related items carry only a preview, lean items and symbol hits neither
+            field = next((f for f in ("text", "preview") if f in hit), None)
+            while field and hit[field] and _size(response) > cap:
                 hit[field] = hit[field][: len(hit[field]) - max(_size(response) - cap, 1)]
             kept.append(hit)
         break
@@ -380,7 +443,7 @@ def get_slice(project: Project, slice_id: str, *, indexing: bool = False) -> dic
 
 def get_related(
     project: Project, slice_id: str | None = None, path: str | None = None, limit: int = 10,
-    *, indexing: bool = False,
+    *, indexing: bool = False, lean: bool = False,
 ) -> dict[str, Any]:
     """1-hop neighbours (FR-006) of one slice or of one file, nearest edge types first.
 
@@ -392,6 +455,8 @@ def get_related(
     when the queried file references it, "in" when it references the queried file.
     A function or method slice also gets `unresolved_callers` (FR-030): how many other symbols
     call its name without a `calls` edge to it, so `called_by` may be incomplete when > 0.
+    `lean` leaves out each `preview`, marks neighbours in test files `test: true`, and adds
+    `complete` (`unresolved_callers == 0`) to a function or method slice.
     """
     if (slice_id is None) == (path is None):
         raise ValueError("pass exactly one of slice_id or path")
@@ -414,6 +479,8 @@ def get_related(
             rel = row[1]
             if row[6] in ("function", "method"):
                 extra = {"unresolved_callers": store.unresolved_callers(row[1], row[5])}
+                if lean:
+                    extra["complete"] = extra["unresolved_callers"] == 0
         elif not store.has_file(rel):
             raise ValueError(f"path {path!r} is not indexed in project {project.project_id}")
         found = store.related(slice_id, rel)
@@ -433,12 +500,14 @@ def get_related(
             "end_line": end,
             "edge_type": kind,
             **({"direction": direction} if direction else {}),
-            "preview": " ".join(text.split())[:PREVIEW_CHARS],
+            **({"test": True} if lean and is_test_path(spath) else {}),
+            **({} if lean else {"preview": " ".join(text.split())[:PREVIEW_CHARS]}),
             **_symbol_fields(symbol, kind_, part),
             **_stale_field(fresh, spath),
         })
     head = {**head, "source": {"slice_id": slice_id, "path": rel}, "stale_dropped": stale_dropped, **extra}
     out = _fit_response(head, related, config.max_response_chars(), key="related")
     out["dropped"] += len(found) - len(related) - stale_dropped
-    record_served(project, sum(len(r["preview"]) for r in out["related"]), len(out["related"]))
+    chars = len(json.dumps(out["related"])) if lean else sum(len(r["preview"]) for r in out["related"])
+    record_served(project, chars, len(out["related"]))
     return out

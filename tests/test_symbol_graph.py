@@ -387,3 +387,47 @@ def test_constant_is_found_by_symbol_search(tmp_path, home):
                                  "o.ts": "export function other() {\n  return 'throttle';\n}\n"})
     out = tools.search_semantic(p, "THROTTLE_CONFIG", embedder=FakeEmbedder())
     assert out["hits"][0]["path"] == "c.ts"
+
+
+# --- HUN-60 / FR-032: get_related(lean=True) -------------------------------------------------------
+
+
+def test_lean_related_drops_preview_marks_tests_and_flags_completeness(repo, home):
+    root, p = repo
+    (root / "tests").mkdir()
+    (root / "tests" / "test_dup.py").write_text("from dup_a import dup\n\n\ndef test_it():\n    dup()\n")
+    (root / "dup_a.spec.ts").write_text("import { x } from './dup_a';\n")
+    reindex(p)
+    slice_id = sid(home, p, "dup_a.py", "dup")
+    plain = tools.get_related(p, slice_id=slice_id)
+    lean = tools.get_related(p, slice_id=slice_id, lean=True)
+    assert all("preview" in r for r in plain["related"])
+    assert "complete" not in plain and not any("test" in r for r in plain["related"])
+    assert lean["related"] and all("preview" not in r for r in lean["related"])
+    assert lean["unresolved_callers"] == 1 and lean["complete"] is False
+    marked = {r["path"] for r in lean["related"] if r.get("test")}
+    assert marked and marked <= {"tests/test_dup.py", "dup_a.spec.ts"}
+    assert all(r.get("test") is True for r in lean["related"] if tools.is_test_path(r["path"]))
+    assert not any("test" in r for r in lean["related"] if not tools.is_test_path(r["path"]))
+
+
+def test_lean_complete_is_true_when_no_unresolved_callers(repo, home):
+    _, p = repo
+    out = tools.get_related(p, slice_id=sid(home, p, "auth.py", "normalize"), lean=True)
+    assert out["unresolved_callers"] == 0 and out["complete"] is True
+
+
+def test_lean_has_no_complete_on_a_path_query(repo, home):
+    _, p = repo
+    out = tools.get_related(p, path="auth.py", lean=True)
+    assert "complete" not in out and "unresolved_callers" not in out
+    assert all("preview" not in r for r in out["related"])
+
+
+@pytest.mark.parametrize("path, expected", [
+    ("web/a.spec.ts", True), ("web/a.test.js", True), ("pkg/test_a.py", True),
+    ("pkg/a_test.py", True), ("tests/helper.py", True), ("src/__tests__/x.ts", True),
+    ("test/x.py", True), ("src/a.py", False), ("src/contest.py", False), ("src/latest_a.py", False),
+])
+def test_is_test_path(path, expected):
+    assert tools.is_test_path(path) is expected
