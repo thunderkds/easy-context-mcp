@@ -15,9 +15,10 @@ log = logging.getLogger(__name__)
 
 # v2 (HUN-16): symbol columns + FTS5 symbol names. v3 (HUN-11): edges table. v4 (HUN-17):
 # `slices.refs` (call sites / bases of a symbol, resolved into edges at the end of index_path)
-# and an index on `edges.dst_slice`. An older index is dropped and rebuilt by the next
+# and an index on `edges.dst_slice`. v5 (HUN-59): `constant` symbols and decorator calls in
+# `refs`. An older index is dropped and rebuilt by the next
 # index_path (it is a derived cache; the shared embed cache keeps the vectors).
-SCHEMA_VERSION = 4
+SCHEMA_VERSION = 5
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS meta (
     key TEXT PRIMARY KEY,

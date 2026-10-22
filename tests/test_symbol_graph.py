@@ -224,7 +224,7 @@ def test_v3_index_is_rebuilt_with_symbol_edges(repo, home):
     con.commit()
     con.close()
     reindex(p)
-    assert db_rows(home, p, "PRAGMA user_version") == [(4,)]
+    assert db_rows(home, p, "PRAGMA user_version") == [(5,)]
     assert ("calls", "app.py", "helper") in neighbours(home, p, "app.py", "run")
 
 
@@ -359,3 +359,31 @@ def test_no_unresolved_callers_key_for_class_path_and_markdown(tmp_path, home):
     md = db_rows(home, p, "SELECT id FROM slices WHERE path = 'd.md'")[0][0]
     assert "unresolved_callers" not in tools.get_related(p, slice_id=md)
     assert "unresolved_callers" not in tools.get_related(p, path="m.py")
+
+
+def test_v4_index_is_rebuilt_at_v5(repo, home):
+    _, p = repo
+    con = sqlite3.connect(home / "indexes" / p.project_id / "index.sqlite")
+    con.execute("PRAGMA user_version=4")
+    con.commit()
+    con.close()
+    with pytest.raises(ValueError, match="Run index_path"):
+        tools.get_slice(p, "nope")
+    reindex(p)
+    assert db_rows(home, p, "PRAGMA user_version") == [(5,)]
+
+
+def test_decorator_call_gives_called_by_edge(tmp_path, home):
+    p = small_project(tmp_path, {
+        "dec.ts": "export function Public() {\n  return 1;\n}\n",
+        "ctl.ts": "import { Public } from './dec';\n\nexport class C {\n  @Public()\n"
+                  "  getX() {\n    return 1;\n  }\n}\n"})
+    out = unresolved(home, p, "dec.ts", "Public")
+    assert any(r["edge_type"] == "called_by" and r["path"] == "ctl.ts" for r in out["related"])
+
+
+def test_constant_is_found_by_symbol_search(tmp_path, home):
+    p = small_project(tmp_path, {"c.ts": "export const THROTTLE_CONFIG = { ttl: 60 };\n",
+                                 "o.ts": "export function other() {\n  return 'throttle';\n}\n"})
+    out = tools.search_semantic(p, "THROTTLE_CONFIG", embedder=FakeEmbedder())
+    assert out["hits"][0]["path"] == "c.ts"

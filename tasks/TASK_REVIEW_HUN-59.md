@@ -33,10 +33,23 @@
 > **before any implementation commit exists**; if it does not (docs, templates, skill-instruction
 > text), BEFORE is the **verbatim prior content** of what changed — a quoted excerpt, not a command.
 
-**BEFORE**: [pasted timestamped command output showing the thing absent/failing, captured before the
-first implementation commit] OR [verbatim excerpt of the prior content, for non-executable changes]
+**BEFORE**: captured 2026-10-22T10:43:59Z, `symbol_pieces("a.ts", ...)` on `export const THROTTLE_CONFIG = { ttl: 60 };` plus `export class A { @Public() getX() {...} }` (symbol, kind, refs per piece):
 
-**AFTER**: [same command, post-change] OR [verbatim excerpt of the new content]
+```
+None None None                     <- THROTTLE_CONFIG line: gap slice, no symbol
+A class None
+A.getX method {"parent":"A"}       <- no calls: Public missing
+None None None
+```
+
+**AFTER**: same script, captured 2026-10-22T10:47:42Z after the change:
+
+```
+THROTTLE_CONFIG constant None
+A class None
+A.getX method {"parent":"A","calls":[["Public",null]]}
+None None None
+```
 
 **DELTA**: [one sentence — what a user can now do that they could not before]
 

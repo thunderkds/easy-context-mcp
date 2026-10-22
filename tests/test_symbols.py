@@ -113,6 +113,7 @@ def test_grammar_abi_mismatch_falls_back_to_line_windows(monkeypatch):
 
 def test_python_symbols_with_decorators_docstrings_and_qualified_names():
     assert spans("inventory.py") == [
+        (6, 6, "MAX_ITEMS", "constant"),
         (9, 14, "Item", "class"),  # @dataclass + docstring
         (17, 24, "log_call", "function"),  # nested `wrapper` stays inside (cut list)
         (27, 28, "Inventory", "class"),
@@ -158,6 +159,7 @@ def test_tsx_arrow_component_and_function():
 
 def test_javascript_declaration_function_expression_class():
     assert spans("web/format.js") == [
+        (1, 1, "LOCALE", "constant"),
         (3, 5, "formatMoney", "function"),
         (7, 9, "formatDate", "function"),  # const f = function () {}
         (11, 11, "Formatter", "class"),
@@ -231,10 +233,11 @@ def test_large_real_python_files(name):
     assert all(owners.get(n) == 1 for n, line in enumerate(lines, 1) if line.strip())
 
 
-def test_imports_and_constants_become_gap_slices():
+def test_imports_become_gap_slices_and_constants_symbols():
     gaps = [p for p in pieces("inventory.py") if p.symbol is None]
-    assert len(gaps) == 1 and (gaps[0].start_line, gaps[0].end_line) == (1, 6)
-    assert "import functools" in gaps[0].text and "MAX_ITEMS = 1000" in gaps[0].text
+    assert len(gaps) == 1 and (gaps[0].start_line, gaps[0].end_line) == (1, 4)
+    assert "import functools" in gaps[0].text and "MAX_ITEMS" not in gaps[0].text
+    assert [p.symbol for p in pieces("inventory.py") if p.kind == "constant"] == ["MAX_ITEMS"]
     assert gaps[0].kind is None and gaps[0].part is None
 
 
@@ -531,3 +534,74 @@ def test_real_model_inventory_add_rank_1(repo, monkeypatch, query):
     emb = LocalEmbedder()
     tools.index_path(p, ".", embedder=emb)
     assert tools.search_semantic(p, query, embedder=emb)["hits"][0]["symbol"] == "Inventory.add"
+
+
+# --- HUN-59: constants and decorator calls -----------------------------------------------------
+
+
+def _syms(name: str, text: str):
+    return {p.symbol: p for p in symbol_pieces(name, text.encode(), 2000) if p.symbol}
+
+
+def _calls_of(piece):
+    import json
+
+    return json.loads(piece.refs or "{}").get("calls", [])
+
+
+def test_ts_top_level_const_values_become_constants():
+    syms = _syms("c.ts", "export const A_B = {x: 1};\nconst LIMIT = 5;\nconst f = () => 1;\n"
+                 "let z = 2;\nvar y = 3;\nconst {a} = obj;\nexport default {k: 1};\n")
+    assert {k: v.kind for k, v in syms.items()} == {"A_B": "constant", "LIMIT": "constant",
+                                                    "f": "function"}
+    assert syms["A_B"].text.startswith("export const A_B")
+    assert "calls" not in (syms["A_B"].refs or "")
+
+
+def test_js_constant_never_gets_calls():
+    syms = _syms("c.js", "const LIMIT = compute(1);\nmodule.exports = {LIMIT};\n")
+    assert syms["LIMIT"].kind == "constant"
+    assert "calls" not in (syms["LIMIT"].refs or "")
+
+
+def test_every_line_still_owned_with_constants():
+    text = "// cfg\nexport const A = {\n  x: 1,\n};\n\nimport q from 'q';\nconst B = 2;\n"
+    out = symbol_pieces("c.ts", text.encode(), 2000)
+    covered = [n for p in out for n in range(p.start_line, p.end_line + 1)]
+    assert len(covered) == len(set(covered))
+    assert {n for n, ln in enumerate(text.split("\n"), 1) if ln.strip()} <= set(covered)
+
+
+def test_python_module_upper_case_assignment_is_constant():
+    syms = _syms("m.py", "MAX_K = 100\nlog = get()\nclass C:\n    LIMIT = 1\n"
+                 "def f():\n    Y = 1\n")
+    assert {k: v.kind for k, v in syms.items()} == {"MAX_K": "constant", "C": "class",
+                                                    "f": "function"}
+
+
+def test_oversize_constant_splits_into_parts():
+    body = "\n".join(f"  k{i}: {i}," for i in range(200))
+    out = [p for p in symbol_pieces("c.ts", f"const BIG = {{\n{body}\n}};\n".encode(), 300)
+           if p.symbol == "BIG"]
+    assert len(out) > 1 and all(p.kind == "constant" and p.part for p in out)
+
+
+def test_ts_method_decorator_calls_are_calls_of_the_method():
+    text = ("export class A {\n  @Public()\n  @Get('x')\n  @Bare\n"
+            "  getX() {\n    return 1;\n  }\n\n  @Foo.bar()\n  other() {}\n}\n")
+    syms = _syms("a.ts", text)
+    assert ["Public", None] in _calls_of(syms["A.getX"])
+    assert ["Get", None] in _calls_of(syms["A.getX"])
+    assert ["Bare", None] not in _calls_of(syms["A.getX"])
+    assert ["bar", "Foo"] in _calls_of(syms["A.other"])
+
+
+def test_ts_class_decorator_is_a_ref_of_the_class():
+    syms = _syms("a.ts", "@Injectable()\nexport class A {}\n")
+    assert ["Injectable", None] in _calls_of(syms["A"])
+
+
+def test_python_decorator_call_is_a_call_of_the_function():
+    syms = _syms("m.py", "@app.route('/x')\ndef f():\n    pass\n\n@plain\ndef g():\n    pass\n")
+    assert ["route", "app"] in _calls_of(syms["f"])
+    assert _calls_of(syms["g"]) == []

@@ -457,7 +457,7 @@ A second `index_path` on an unchanged repo took 0.27 s for both. Expect minutes,
 
 ## Limitations
 
-- **Languages.** Code symbol slices (one per function, class or method) exist only for Python, JavaScript and TypeScript (including JSX and TSX), Java and Kotlin. Other languages use line windows (default 60 lines, 10 overlap). A file that fails to parse also falls back to line windows.
+- **Languages.** Code symbol slices (one per function, class, method or constant) exist only for Python, JavaScript and TypeScript (including JSX and TSX), Java and Kotlin. Other languages use line windows (default 60 lines, 10 overlap). A file that fails to parse also falls back to line windows. Constants are JS/TS top-level `const` values that are not functions and Python module-level UPPER_CASE assignments; `let`, `var`, destructuring, class fields and Java/Kotlin constants are not symbols. The call inside a JS/TS or Python decorator (`@Public()`) counts as a call of the decorated symbol; Java/Kotlin annotations do not.
 - **Kotlin.** A class or object written on one line falls back to line windows for that file.
 - **Chunk boundaries** are best effort. A slice can cut a logical unit in the middle.
 - **Call edges are matched by name, not by type.** A name with several candidates gets no edge. Calls on instance variables (`obj.method()`) get no edge. A call through a class name or an imported module does. `get_related` on a function or method slice reports `unresolved_callers`, the callers of that name that got no edge to it. When it is above 0, and before a rename or delete, grep for the name: grep is the source of truth for callers.

@@ -295,7 +295,7 @@ def test_index_written_with_hun7_schema_opens_and_indexes(tmp_path, home):
     assert res["files_embedded"] == 1 and emb.texts_embedded == 0 and res["files"] == 1
     size, mtime = db_rows(home, p, "SELECT size, mtime_ns FROM files")[0]
     assert size == (root / "a.py").stat().st_size and mtime == (root / "a.py").stat().st_mtime_ns
-    assert db_rows(home, p, "PRAGMA user_version") == [(4,)]
+    assert db_rows(home, p, "PRAGMA user_version") == [(5,)]
     assert run(p)["files_unchanged"] == 1
 
 
