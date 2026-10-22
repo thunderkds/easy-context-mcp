@@ -431,3 +431,15 @@ def test_lean_has_no_complete_on_a_path_query(repo, home):
 ])
 def test_is_test_path(path, expected):
     assert tools.is_test_path(path) is expected
+
+
+def test_lean_complete_is_false_when_the_limit_cut_neighbours(tmp_path, home):
+    p = small_project(tmp_path, {"m.py": (
+        "def target():\n    return 1\n\n\n"
+        "def a():\n    target()\n\n\ndef b():\n    target()\n\n\ndef c():\n    target()\n"
+    )})
+    slice_id = sid(home, p, "m.py", "target")
+    cut = tools.get_related(p, slice_id=slice_id, limit=2, lean=True)
+    assert cut["unresolved_callers"] == 0 and cut["dropped"] >= 1 and cut["complete"] is False
+    full = tools.get_related(p, slice_id=slice_id, limit=10, lean=True)
+    assert full["dropped"] == 0 and full["complete"] is True

@@ -731,3 +731,17 @@ def test_omitted_or_semantic_mode_is_unchanged_and_unknown_mode_is_an_error(symb
     assert same == plain
     with pytest.raises(ValueError, match="mode"):
         tools.search_semantic(p, "add", embedder=FakeEmbedder(), mode="fuzzy")
+
+
+def test_symbol_mode_counts_exact_matches_cut_by_k(tmp_path):
+    root = tmp_path / "many"
+    root.mkdir()
+    for i in range(7):
+        (root / f"m{i}.py").write_text("def add():\n    return 1\n")
+    p = project(root)
+    tools.index_path(p, ".", embedder=FakeEmbedder())
+    out = symbol_search(p, "add", k=3)
+    assert len(out["hits"]) == 3 and out["exact_count"] == 7 and out["dropped"] == 4
+    (root / "m0.py").unlink()
+    out = symbol_search(p, "add", k=3)
+    assert out["exact_count"] == 6 and out["stale_dropped"] == 1 and out["dropped"] == 4

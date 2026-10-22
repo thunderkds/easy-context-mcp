@@ -361,13 +361,16 @@ def _symbol_search(
         found = sorted(
             (-matches[sid], r[1], r[2], sid) for sid, r in rows.items()
             if not prefix or r[1] == prefix or r[1].startswith(prefix + "/")
-        )[:k]
+        )
+        exact_total, cut = sum(f[0] == -2.0 for f in found), max(len(found) - k, 0)
+        found = found[:k]
         stored = store.file_stats(sorted({rows[f[3]][1] for f in found}))
     fresh = _freshness(project.root, stored)
     hits, stale_dropped = [], 0
     for neg_score, path, start, sid in found:
         if fresh.get(path, "ok") == "missing":
             stale_dropped += 1
+            exact_total -= neg_score == -2.0
             continue
         _, _, _, end, _, symbol, kind, part = rows[sid]
         hits.append({
@@ -376,11 +379,11 @@ def _symbol_search(
             "match": "exact" if neg_score == -2.0 else "prefix",
             **_stale_field(fresh, path),
         })
-    exact = sum(h["match"] == "exact" for h in hits)
     head = {**_envelope(project), "indexed": True, "indexing": indexing,
-            "stale_dropped": stale_dropped, "exact_count": exact,
-            **({} if exact else {"note": SYMBOL_NOTE})}
+            "stale_dropped": stale_dropped, "exact_count": exact_total,
+            **({} if exact_total else {"note": SYMBOL_NOTE})}
     response = _fit_response(head, hits, response_cap)
+    response["dropped"] += cut  # matches beyond k count as dropped too
     record_served(project, len(json.dumps(response["hits"])), len(response["hits"]))
     return response
 
@@ -479,8 +482,7 @@ def get_related(
             rel = row[1]
             if row[6] in ("function", "method"):
                 extra = {"unresolved_callers": store.unresolved_callers(row[1], row[5])}
-                if lean:
-                    extra["complete"] = extra["unresolved_callers"] == 0
+
         elif not store.has_file(rel):
             raise ValueError(f"path {path!r} is not indexed in project {project.project_id}")
         found = store.related(slice_id, rel)
@@ -508,6 +510,8 @@ def get_related(
     head = {**head, "source": {"slice_id": slice_id, "path": rel}, "stale_dropped": stale_dropped, **extra}
     out = _fit_response(head, related, config.max_response_chars(), key="related")
     out["dropped"] += len(found) - len(related) - stale_dropped
+    if lean and "unresolved_callers" in out:
+        out["complete"] = out["unresolved_callers"] == 0 and out["dropped"] == 0
     chars = len(json.dumps(out["related"])) if lean else sum(len(r["preview"]) for r in out["related"])
     record_served(project, chars, len(out["related"]))
     return out

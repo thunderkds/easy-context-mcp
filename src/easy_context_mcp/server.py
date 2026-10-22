@@ -80,7 +80,7 @@ def create_app(
         `mode="symbol"` answers by symbol name only (no embedding): up to k matches with
         id, path, lines, `symbol`, `kind` and `match` ("exact": the query equals the qualified
         name or a dotted tail; "prefix"), exact ones first, no text. `exact_count` is how many
-        are exact. When it is 0 a `note` says only functions, classes, methods, interfaces and
+        are exact (counted before the k cut; matches cut by k are in `dropped`). When it is 0 a `note` says only functions, classes, methods, interfaces and
         top-level constants are indexed: grep before concluding a name does not exist. Read a
         match with `get_slice`. Any other `mode` than "symbol" is an error.
 
@@ -133,7 +133,8 @@ def create_app(
 
         `lean=true` returns the same neighbours without `preview`, marks neighbours in test
         files `test: true`, and on a function or method slice adds `complete` (true when
-        `unresolved_callers` is 0: the caller list is then complete).
+        `unresolved_callers` is 0 and no neighbour was left out by `limit` or the size cap, so
+        `dropped` is 0; when false, grep the name or raise `limit`).
         """
         project = _bind(ctx, root, service_mode)
         return tools.get_related(
