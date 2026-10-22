@@ -142,13 +142,34 @@ def _variable_function(node, src: bytes):
     return None
 
 
+_UPPER = re.compile(r"[A-Z][A-Z0-9_]*\Z")
+
+
+def _constant(node, src: bytes):
+    """(node, name, "constant") for a top-level `const X = <value>` / Python `MAX_K = 1`, else None."""
+    if node.type == "lexical_declaration" and node.children and node.children[0].type == "const":
+        for decl in node.named_children:
+            name = decl.child_by_field_name("name")
+            if (decl.child_by_field_name("value") is not None and name is not None
+                    and name.type == "identifier"):
+                return node, _text(src, name), "constant"
+    elif node.type == "expression_statement" and node.named_children:
+        target = node.named_children[0]
+        left = target.child_by_field_name("left") if target.type == "assignment" else None
+        if left is not None and left.type == "identifier" and _UPPER.match(_text(src, left)):
+            return node, _text(src, left), "constant"
+    return None
+
+
 def _declaration(child, lang: _Lang, src: bytes, top: bool):
     """(node, name, kind) for a declaration child, or None. Unwraps decorators and `export`."""
     node = _unwrap(child, lang)
     if node is None:
         return None
     if top and node.type in ("lexical_declaration", "variable_declaration"):
-        return _variable_function(node, src)
+        return _variable_function(node, src) or _constant(node, src)
+    if top and node.type == "expression_statement":
+        return _constant(node, src)
     kind = lang.defs.get(node.type)
     if kind is None:
         return None
@@ -324,19 +345,33 @@ def _calls(node, skip: set, src: bytes) -> list[tuple[str, str | None]]:
     return list(dict.fromkeys(out))
 
 
+def _decorators(node) -> list:
+    """Decorator nodes of a declaration: its own children, those of an `export` / `decorated`
+    wrapper around it, and the `decorator` siblings directly before it (TS class members)."""
+    out = [c for c in node.children if c.type == "decorator"]
+    if node.parent is not None and node.parent.type in ("export_statement", "decorated_definition"):
+        out += [c for c in node.parent.children if c.type == "decorator"]
+    prev = node.prev_sibling
+    while prev is not None and prev.type == "decorator":
+        out.append(prev)
+        prev = prev.prev_sibling
+    return out
+
+
 def _refs(syms: list[_Sym], i: int, skip: set, src: bytes) -> str | None:
     sym = syms[i]
     refs: dict = {}
     if sym.parent is not None:
         refs["parent"] = syms[sym.parent].name
+    calls = [c for dec in _decorators(sym.node) for c in _calls(dec, skip, src)]
     if sym.kind in ("function", "method"):
-        calls = _calls(sym.node, skip, src)
-        if calls:
-            refs["calls"] = calls
+        calls += _calls(sym.node, skip, src)
     elif sym.kind in _CONTAINERS:
         bases = _bases(sym.node, src)
         if bases:
             refs["bases"] = bases
+    if calls and sym.kind != "constant":
+        refs["calls"] = list(dict.fromkeys(calls))
     return json.dumps(refs, separators=(",", ":")) if refs else None
 
 
