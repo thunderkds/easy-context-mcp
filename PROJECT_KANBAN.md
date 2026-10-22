@@ -9,7 +9,6 @@
 ## Board
 
 ### Todo
-- [ ] **HUN-55** — Usage policy follows the benchmark (grep by default, worktree root) and get_related counts unresolved callers | Backend-Implementer | C2 | Risk: Low | P1 | @hungnh1110 | Guide: `tasks/TASK_GUIDE_HUN-55.md`
 
 ### In Progress
 
@@ -35,6 +34,7 @@
 - [x] **HUN-30** — Embed-cache GC: an index file with no \`slices\` table must not stop the whole GC pass | Backend-Implementer | C1 | Risk: Medium | P1 | @hungnh1110 | Guide: `tasks/TASK_GUIDE_HUN-30.md`
 - [x] **HUN-31** — Test isolation: no test may write into the real ~/.easy-context | QA-Automation-Agent | C2 | Risk: Medium | P2 | @hungnh1110 | Guide: `tasks/TASK_GUIDE_HUN-31.md`
 - [x] **HUN-54** — Stale hit check: drop hits of deleted files, mark hits of changed files \`stale: true\` | Backend-Implementer | C2 | Risk: Medium | P1 | @hungnh1110 | Guide: `tasks/TASK_GUIDE_HUN-54.md`
+- [x] **HUN-55** — Usage policy follows the benchmark (grep by default, worktree root) and get_related counts unresolved callers | Backend-Implementer | C2 | Risk: Low | P1 | @hungnh1110 | Guide: `tasks/TASK_GUIDE_HUN-55.md`
 
 ### Closed (will not do)
 
