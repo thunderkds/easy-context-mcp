@@ -33,8 +33,37 @@
 > **before any implementation commit exists**; if it does not (docs, templates, skill-instruction
 > text), BEFORE is the **verbatim prior content** of what changed — a quoted excerpt, not a command.
 
-**BEFORE**: [pasted timestamped command output showing the thing absent/failing, captured before the
-first implementation commit] OR [verbatim excerpt of the prior content, for non-executable changes]
+**BEFORE** (captured 2026-10-22T10:51:48Z on the unchanged code, tmp EASY_CONTEXT_HOME, FakeEmbedder, project with `getClientIp` and a caller; script: scratchpad `demo.py`):
+
+```
+2026-10-22T10:51:48.595789+00:00
+search_semantic('getClient') top-level keys: ['dropped', 'hits', 'indexed', 'indexing', 'project_id', 'root', 'stale_dropped']
+hit keys: ['end_line', 'id', 'kind', 'path', 'preview', 'score', 'start_line', 'symbol', 'text', 'truncated'] | has match: False
+get_related keys: ['dropped', 'indexed', 'indexing', 'project_id', 'related', 'root', 'source', 'stale_dropped', 'unresolved_callers']
+neighbour keys: ['edge_type', 'end_line', 'id', 'kind', 'path', 'preview', 'start_line', 'symbol'] | has complete: False
+```
+
+Hits carry `text`/`preview`, no `match`, no `exact_count`; neighbours carry `preview`, no `complete`.
+
+Current README section 10 policy block, verbatim:
+
+```markdown
+## Context retrieval (easy-context)
+
+Use grep and ranged reads by default. For a known name, exact text, every caller,
+or code and its tests, grep is cheaper and just as accurate.
+Use easy-context MCP tools for questions asked by meaning ("where is X handled",
+"why did we choose X"):
+- search_semantic — find code/docs by meaning
+- get_slice — full text of one slice
+- get_related — 1-hop structure (imports, links, headings, calls)
+
+Callers in get_related are best-effort. Grep for the name when `unresolved_callers` > 0
+and before a rename or delete.
+A hit with `stale: true` changed on disk after indexing: read the file itself.
+In a git worktree, pass `root=<worktree path>` to every tool.
+Before first use in a project, and after a merge: index_path on the project root.
+```
 
 **AFTER**: [same command, post-change] OR [verbatim excerpt of the new content]
 
