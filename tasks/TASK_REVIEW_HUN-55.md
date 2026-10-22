@@ -33,8 +33,29 @@
 > **before any implementation commit exists**; if it does not (docs, templates, skill-instruction
 > text), BEFORE is the **verbatim prior content** of what changed — a quoted excerpt, not a command.
 
-**BEFORE**: [pasted timestamped command output showing the thing absent/failing, captured before the
-first implementation commit] OR [verbatim excerpt of the prior content, for non-executable changes]
+**BEFORE**: captured 2026-10-22T05:10:18Z on unchanged code (FakeEmbedder, tmp EASY_CONTEXT_HOME, `calls_repo` indexed, `get_related` on the `dup_a.py` `dup` slice):
+
+```
+2026-10-22T05:10:18.101364+00:00
+{ "source": {"slice_id": "7968e74dc3d43364", "path": "dup_a.py"}, "related": [] }
+keys: ['dropped', 'indexed', 'indexing', 'project_id', 'related', 'root', 'source', 'stale_dropped']
+has unresolved_callers: False
+called_by edges: []
+```
+
+Prior README policy block (verbatim, README.md section 10 and "Easy Kit policy"):
+
+```markdown
+## Context retrieval (easy-context)
+
+Prefer easy-context MCP tools for exploration and discovery:
+- search_semantic — find code/docs by meaning
+- get_related — 1-hop structure (imports, links, headings)
+- get_slice — full text of one slice
+
+Use native Read/Edit when the path is already known and you need to change a file.
+Before first use in a project: index_path on the project root.
+```
 
 **AFTER**: [same command, post-change] OR [verbatim excerpt of the new content]
 
