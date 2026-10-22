@@ -216,13 +216,19 @@ Search may return **preview + truncated text** under caps; `get_slice` returns f
 ```markdown
 ## Context retrieval (easy-context)
 
-Prefer easy-context MCP tools for exploration and discovery:
+Use grep and ranged reads by default. For a known name, exact text, every caller,
+or code and its tests, grep is cheaper and just as accurate.
+Use easy-context MCP tools for questions asked by meaning ("where is X handled",
+"why did we choose X"):
 - search_semantic — find code/docs by meaning
-- get_related — 1-hop structure (imports, links, headings)
 - get_slice — full text of one slice
+- get_related — 1-hop structure (imports, links, headings, calls)
 
-Use native Read/Edit when the path is already known and you need to change a file.
-Before first use in a project: index_path on the project root.
+Callers in get_related are best-effort. Grep for the name when `unresolved_callers` > 0
+and before a rename or delete.
+A hit with `stale: true` changed on disk after indexing: read the file itself.
+In a git worktree, pass `root=<worktree path>` to every tool.
+Before first use in a project, and after a merge: index_path on the project root.
 ```
 
 **Install (user machine):**
@@ -380,7 +386,7 @@ Six tools. Every tool takes an optional `root` (see above).
 | `index_path` | `path` (default `.`), `force` | Starts a background job and returns at once: `job_id`, `status`, `files_total`, `estimated_seconds`. A call while a job is active returns that job. Unchanged files are skipped unless `force`. |
 | `search_semantic` | `query`, `k` (default 5, max 100), `path_prefix` | Top-k hits: `id, path, start_line, end_line, score, preview, text, truncated`. Hits from code symbol slices also carry `symbol` and `kind`, and a `part` for a symbol split into parts. `dropped` counts hits left out by the response cap. Each hit's file is checked on disk (size + mtime): a hit whose file is gone is left out and counted in `stale_dropped`, and a hit whose file changed since indexing carries `stale: true`. `indexing: true` means a job is running and the results cover the files committed so far. |
 | `get_slice` | `slice_id` | Full text of one slice with path and lines (`truncated` if the slice cap applies). `stale: true` when the file changed or is gone since indexing; the slice is never hidden. |
-| `get_related` | `slice_id` or `path`, `limit` (default 10) | 1-hop neighbours with path and line range. Extra ones are counted in `dropped`. A neighbour whose file is gone is left out and counted in `stale_dropped`; one whose file changed carries `stale: true`. |
+| `get_related` | `slice_id` or `path`, `limit` (default 10) | 1-hop neighbours with path and line range. Extra ones are counted in `dropped`. A neighbour whose file is gone is left out and counted in `stale_dropped`; one whose file changed carries `stale: true`. For a function or method slice the result also has `unresolved_callers`: the number of other symbols that call its name without a `calls` edge to it, so `called_by` may be incomplete when it is above 0. |
 | `list_indexes` | none | Every index on the machine: `project_id, root, root_exists, files, slices, last_index_at, indexing, status, job_id, files_done, files_total, eta_seconds, last_error`. |
 | `get_stats` | `project_id` | Counts, skip counts per reason from the last job, `last_index_at`, job status, and `chars_served` / `slices_served` (cumulative) plus `..._since_start` (this server process). With another project's `project_id` you get counts only, never slice text. |
 
@@ -391,7 +397,7 @@ Six tools. Every tool takes an optional `root` (see above).
 | Edge | Between | Notes |
 |---|---|---|
 | `calls` | function/method slice and the function it calls | Matched by name |
-| `called_by` | the reverse of `calls` | Computed at query time |
+| `called_by` | the reverse of `calls` | Computed at query time. Best-effort: see `unresolved_callers` |
 | `contains` | class slice and its members | |
 | `extends` | class slice and its base types | |
 | `parent`, `child` | Markdown heading and its sub-heading | |
@@ -454,7 +460,7 @@ A second `index_path` on an unchanged repo took 0.27 s for both. Expect minutes,
 - **Languages.** Code symbol slices (one per function, class or method) exist only for Python, JavaScript and TypeScript (including JSX and TSX), Java and Kotlin. Other languages use line windows (default 60 lines, 10 overlap). A file that fails to parse also falls back to line windows.
 - **Kotlin.** A class or object written on one line falls back to line windows for that file.
 - **Chunk boundaries** are best effort. A slice can cut a logical unit in the middle.
-- **Call edges are matched by name, not by type.** A name with several candidates gets no edge. Calls on instance variables (`obj.method()`) get no edge. A call through a class name or an imported module does.
+- **Call edges are matched by name, not by type.** A name with several candidates gets no edge. Calls on instance variables (`obj.method()`) get no edge. A call through a class name or an imported module does. `get_related` on a function or method slice reports `unresolved_callers`, the callers of that name that got no edge to it. When it is above 0, and before a rename or delete, grep for the name: grep is the source of truth for callers.
 - **Import edges** are found by regex for Python, JS and TS. They are incomplete: dynamic imports, aliases and re-exports can be missed. Other languages have no import edges.
 - **No language server (LSP).** There is no type information, no cross-language links and no rename tracking.
 - **Edge freshness.** Import and link edges are computed when the importing file is (re)processed. An edge to a file that you add later appears only after the importer changes or you run `index_path` with `force`.
@@ -473,13 +479,19 @@ Paste this into `CLAUDE.md` or `AGENTS.md` of a project that uses easy-context. 
 ```markdown
 ## Context retrieval (easy-context)
 
-Prefer easy-context MCP tools for exploration and discovery:
+Use grep and ranged reads by default. For a known name, exact text, every caller,
+or code and its tests, grep is cheaper and just as accurate.
+Use easy-context MCP tools for questions asked by meaning ("where is X handled",
+"why did we choose X"):
 - search_semantic — find code/docs by meaning
-- get_related — 1-hop structure (imports, links, headings)
 - get_slice — full text of one slice
+- get_related — 1-hop structure (imports, links, headings, calls)
 
-Use native Read/Edit when the path is already known and you need to change a file.
-Before first use in a project: index_path on the project root.
+Callers in get_related are best-effort. Grep for the name when `unresolved_callers` > 0
+and before a rename or delete.
+A hit with `stale: true` changed on disk after indexing: read the file itself.
+In a git worktree, pass `root=<worktree path>` to every tool.
+Before first use in a project, and after a merge: index_path on the project root.
 
 Binding: each call works on one project, the repo (or git worktree) where the session started. In service mode the `X-Easy-Context-Root` header sets it; pass `root` (absolute path) only if the header is missing.
 ```

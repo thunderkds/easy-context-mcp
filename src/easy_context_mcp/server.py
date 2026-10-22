@@ -76,6 +76,7 @@ def create_app(
         A query naming a code symbol (`Inventory.add`, `add`) ranks that symbol's slice first;
         hits from code symbol slices also carry `symbol` and `kind`.
 
+        In a git worktree, pass `root` = the worktree path: each worktree is its own project.
         `path_prefix` (relative to the root) keeps only hits under that directory or file.
         Hits that do not fit the response size cap are left out and counted in `dropped`.
         Each hit's file is checked on disk (size + mtime, no read): a hit whose file is gone is
@@ -116,6 +117,9 @@ def create_app(
         candidates gets no edge) and ranked first. Up to `limit` (default 10) neighbours with
         path + line range; extra ones are counted in `dropped`. A neighbour whose file is gone
         is left out and counted in `stale_dropped`; one whose file changed carries `stale: true`.
+        A function or method slice also gets `unresolved_callers`: how many other symbols call
+        its name without a `calls` edge to it. `called_by` is best-effort; grep the name when
+        it is above 0 and before a rename or delete.
         """
         project = _bind(ctx, root, service_mode)
         return tools.get_related(

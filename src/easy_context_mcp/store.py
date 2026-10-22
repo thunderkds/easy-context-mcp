@@ -1,6 +1,7 @@
 """One SQLite file per project (DDR-0001, FR-013, FR-020) + numpy brute-force cosine search."""
 
 import functools
+import json
 import logging
 import re
 import sqlite3
@@ -400,6 +401,31 @@ class ProjectStore:
             "SELECT id, path, symbol, kind, refs FROM slices WHERE symbol IS NOT NULL "
             "AND (part IS NULL OR part LIKE '1/%') ORDER BY path, start_line"
         ).fetchall()
+
+    def unresolved_callers(self, path: str, symbol: str) -> int:
+        """How many other symbols call the short name of `symbol` (in `path`) without a `calls`
+        edge to any symbol of that short name: ambiguous names and calls on unknown receivers."""
+        short = symbol.rsplit(".", 1)[-1]
+        me = self.con.execute(
+            "SELECT id FROM slices WHERE path = ? AND symbol = ? AND (part IS NULL OR part LIKE '1/%')",
+            (path, symbol),
+        ).fetchone()
+        count = 0
+        for cid, refs in self.con.execute(
+            "SELECT id, refs FROM slices WHERE refs IS NOT NULL AND instr(refs, ?) > 0 "
+            "AND (part IS NULL OR part LIKE '1/%')", (short,)
+        ).fetchall():
+            if me and cid == me[0]:
+                continue
+            if not any(c[0] == short for c in json.loads(refs).get("calls", ())):
+                continue
+            targets = self.con.execute(
+                "SELECT s.symbol FROM edges e JOIN slices s ON s.id = e.dst_slice "
+                "WHERE e.src_slice = ? AND e.edge_type = 'calls'", (cid,)
+            )
+            if not any(t[0].rsplit(".", 1)[-1] == short for t in targets):
+                count += 1
+        return count
 
     def import_map(self) -> dict[str, set[str]]:
         """path -> files it imports (file-level `import` edges)."""

@@ -390,6 +390,8 @@ def get_related(
     no edge), then `parent` / `child` / `same_file`, then the file's `import` / `link` edges.
     Each neighbour has path, lines, `edge_type` and (for `import` / `link`) `direction`: "out"
     when the queried file references it, "in" when it references the queried file.
+    A function or method slice also gets `unresolved_callers` (FR-030): how many other symbols
+    call its name without a `calls` edge to it, so `called_by` may be incomplete when > 0.
     """
     if (slice_id is None) == (path is None):
         raise ValueError("pass exactly one of slice_id or path")
@@ -400,6 +402,7 @@ def get_related(
     head = {**_envelope(project), "indexed": store is not None, "indexing": indexing}
     if store is None:
         return {**head, "related": [], "dropped": 0, "stale_dropped": 0}
+    extra: dict[str, int] = {}
     with closing(store):
         if slice_id is not None:
             row = store.get_slice(slice_id)
@@ -409,6 +412,8 @@ def get_related(
                     f"({project.root})"
                 )
             rel = row[1]
+            if row[6] in ("function", "method"):
+                extra = {"unresolved_callers": store.unresolved_callers(row[1], row[5])}
         elif not store.has_file(rel):
             raise ValueError(f"path {path!r} is not indexed in project {project.project_id}")
         found = store.related(slice_id, rel)
@@ -432,7 +437,7 @@ def get_related(
             **_symbol_fields(symbol, kind_, part),
             **_stale_field(fresh, spath),
         })
-    head = {**head, "source": {"slice_id": slice_id, "path": rel}, "stale_dropped": stale_dropped}
+    head = {**head, "source": {"slice_id": slice_id, "path": rel}, "stale_dropped": stale_dropped, **extra}
     out = _fit_response(head, related, config.max_response_chars(), key="related")
     out["dropped"] += len(found) - len(related) - stale_dropped
     record_served(project, sum(len(r["preview"]) for r in out["related"]), len(out["related"]))
