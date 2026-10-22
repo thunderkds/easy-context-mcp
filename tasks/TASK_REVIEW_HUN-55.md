@@ -14,15 +14,15 @@
 
 | Check | Result | Notes / output snippet |
 |-------|--------|------------------------|
-| **New test(s) cover Acceptance Criteria (file paths pasted)** | ☐ pass / ☐ fail | [test file path(s) — required before Done] |
-| Verification command run | ☐ pass / ☐ fail | [paste actual output] |
-| Negative cases hold | ☐ pass / ☐ fail | |
-| verify | ☐ pass / ☐ fail / ☐ N/A | [what was observed — must literally state "pass" or "fail" here too, e.g. "skill run, feature confirmed working — pass": the merge gate scans this Notes column for the word "pass", not just the Result column] |
-| Review scope bounded to the change's blast radius (affected set, not whole repo) | ☐ pass / ☐ fail | [what was reviewed vs. skipped, and why] |
-| Full smoke suite still green (no regression) | ☐ pass / ☐ fail | |
-| **UI: Visual regression (diff or verdict pasted)** | ☐ pass / ☐ fail / ☐ N/A | [screenshot path or LLM verdict — required for UI tasks, Hard-Stop Gate 6] |
-| **UI: Design-system compliance (tokens/colors/typography verified)** | ☐ pass / ☐ fail / ☐ N/A | [method used + output] |
-| **UI: Responsiveness at target viewports** | ☐ pass / ☐ fail / ☐ N/A | [viewports tested, any overflow findings] |
+| **New test(s) cover Acceptance Criteria (file paths pasted)** | ☑ pass | `tests/test_symbol_graph.py` (8 new: dup_a/dup_b = 1, auth.normalize = 0, unknown receiver = 1, helper = 0 with main in called_by, same-named resolution and recursion not counted, `a_b` vs `axb` literal, no key on class/Markdown/path query) and `tests/test_docs.py::test_easy_kit_policy_keeps_canonical_wording` (AC7). Supervisor re-run: `42 passed in 0.80s` — pass |
+| Verification command run | ☑ pass | `42 passed in 0.80s` / `435 passed, 3 skipped, 6 warnings in 28.87s` / `All checks passed!` (Supervisor, 2026-10-22) — pass |
+| Negative cases hold | ☑ pass | resolved callers give 0; class, Markdown and path queries carry no key — pass |
+| verify | ☑ pass | real stdio server on a copy of calls_repo via MCP client: `12:13:59 dup dup_b.py unresolved_callers: 1 called_by: []` and `12:13:59 helper app.py unresolved_callers: 0 called_by: ['Service.start', 'run']` — pass |
+| Review scope bounded to the change's blast radius (affected set, not whole repo) | ☑ pass | diff main...branch (6 files, 170 lines, lane FITS) + get_related callers; report `reports/code-review_hun-55-policy-callers_20261022T121424.html` — pass |
+| Full smoke suite still green (no regression) | ☑ pass | `435 passed, 3 skipped` — pass |
+| **UI: Visual regression** | ☑ N/A | pure backend + docs task, no UI |
+| **UI: Design-system compliance** | ☑ N/A | pure backend + docs task, no UI |
+| **UI: Responsiveness at target viewports** | ☑ N/A | pure backend + docs task, no UI |
 
 ---
 
@@ -57,9 +57,14 @@ Use native Read/Edit when the path is already known and you need to change a fil
 Before first use in a project: index_path on the project root.
 ```
 
-**AFTER**: [same command, post-change] OR [verbatim excerpt of the new content]
+**AFTER**: same fixture through the real stdio server (Supervisor, 2026-10-22):
 
-**DELTA**: [one sentence — what a user can now do that they could not before]
+```
+12:13:59 dup dup_b.py unresolved_callers: 1 called_by: []
+12:13:59 helper app.py unresolved_callers: 0 called_by: ['Service.start', 'run']
+```
+README §10 and "Easy Kit policy" now carry the grep-first canonical text.
 
-**WITNESS**: [who ran it and when — derived from `memory/event-trace/HUN-55.jsonl`, never the
-implementing agent alone]
+**DELTA**: An agent can now see when `called_by` may be incomplete (`unresolved_callers` > 0), and the shipped policy tells it to grep by default and pass the worktree `root`.
+
+**WITNESS**: Supervisor re-ran the verification command and the stdio-server check on 2026-10-22 12:13 (trace: `memory/event-trace/HUN-55.jsonl`).
