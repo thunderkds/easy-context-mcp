@@ -122,3 +122,8 @@ HUN-10/12/13 were built when the index used additive ALTERs at v1; the peer sess
 - Verify a service change without touching the user's data: `docker build -t easy-context-mcp:<task>-verify .` (never rebuild the `temvar/easy-context-mcp:0.1.0` tag the live service uses), `docker run` it with the compose hardening on a free port against an rsync copy of ~/.easy-context under /var/tmp, `EASY_CONTEXT_REFRESH_SECONDS=5`; remove the image and copy afterwards.
 - The merge gate blocks `git merge` even in a throwaway worktree while tasks are In Progress; check overlap by reading hunks instead.
 **Files**: tests/conftest.py, tests/home_guard.py, tests/test_refresh.py, src/easy_context_mcp/store.py
+
+
+### 2026-10-22 — Lean-output cost estimates must include fallbacks and real metadata
+**Learning**: A bare-list prototype of lean symbol answers estimated 4,674 tokens on 22 tapchat questions; the real tools, following the rule (grep when exact_count 0 / complete false), measured 11,340. Estimate with the shipped response shape and the policy's fallbacks, not a hand-trimmed list. Also: every lean completeness flag needs a test where the list is cut (k, limit, response cap) — both HUN-60 P1s were that case.
+**Files**: src/easy_context_mcp/tools.py
