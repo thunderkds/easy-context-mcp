@@ -3,6 +3,7 @@
 import hashlib
 import json
 import os
+import re
 import stat
 import threading
 from collections.abc import Callable
@@ -258,6 +259,21 @@ def _stale_field(fresh: dict[str, str], path: str) -> dict[str, Any]:
     return {"stale": True} if fresh.get(path) == "changed" else {}
 
 
+SYMBOL_NOTE = (
+    "Only functions, classes, methods, interfaces and top-level constants are indexed, "
+    "so grep before concluding a name does not exist."
+)
+_TEST_PATH = re.compile(
+    r"(^|/)(tests?|__tests__)/|\.(spec|test)\.|(^|/)test_[^/]*\.py$|_test\.py$"
+)
+
+
+def is_test_path(path: str) -> bool:
+    """True for a test file: `.spec.` / `.test.` names, `test_*.py`, `*_test.py`, or a
+    `tests/`, `test/`, `__tests__/` directory."""
+    return bool(_TEST_PATH.search(path))
+
+
 def _size(response: dict[str, Any]) -> int:
     """Characters of the response as FastMCP serializes it (indent=2 JSON text)."""
     return len(json.dumps(response, indent=2, ensure_ascii=False))
@@ -271,8 +287,16 @@ def search_semantic(
     *,
     embedder: Embedder,
     indexing: bool = False,
+    mode: str | None = None,
 ) -> dict[str, Any]:
-    """Top-k hits (k clamped to MAX_K) from the last committed state; `indexing` marks a job."""
+    """Top-k hits (k clamped to MAX_K) from the last committed state; `indexing` marks a job.
+
+    `mode="symbol"` matches symbol names only (no embedding): lean hits with `match` "exact" or
+    "prefix", `exact_count`, and a `note` when nothing matches exactly. `None` / "semantic" is
+    the default search by meaning.
+    """
+    if mode not in (None, "semantic", "symbol"):
+        raise ValueError(f"unknown mode {mode!r}: use 'symbol' or omit it")
     if not query or not query.strip():
         raise ValueError("query must be a non-empty string")
     if k is None:
@@ -285,8 +309,11 @@ def search_semantic(
 
     store = ProjectStore.open_read(config.index_file(project.project_id))
     if store is None:
-        return {**_envelope(project), "indexed": False, "indexing": indexing, "hits": [],
-                "dropped": 0, "stale_dropped": 0}
+        empty = {**_envelope(project), "indexed": False, "indexing": indexing, "hits": [],
+                 "dropped": 0, "stale_dropped": 0}
+        return {**empty, "exact_count": 0, "note": SYMBOL_NOTE} if mode == "symbol" else empty
+    if mode == "symbol":
+        return _symbol_search(project, store, query, k, prefix, response_cap, indexing)
     with closing(store):
         store.check_model(embedder.model_id)
         qvec = normalize(embedder.embed([query.strip()]))[0]
@@ -323,6 +350,44 @@ def search_semantic(
     return response
 
 
+def _symbol_search(
+    project: Project, store: ProjectStore, query: str, k: int, prefix: str, response_cap: int,
+    indexing: bool,
+) -> dict[str, Any]:
+    """`search_semantic(mode="symbol")`: name matches only, exact first, lean hits."""
+    with closing(store):
+        matches = store.name_matches(query)
+        rows = store.get_slices(list(matches))
+        found = sorted(
+            (-matches[sid], r[1], r[2], sid) for sid, r in rows.items()
+            if not prefix or r[1] == prefix or r[1].startswith(prefix + "/")
+        )
+        exact_total, cut = sum(f[0] == -2.0 for f in found), max(len(found) - k, 0)
+        found = found[:k]
+        stored = store.file_stats(sorted({rows[f[3]][1] for f in found}))
+    fresh = _freshness(project.root, stored)
+    hits, stale_dropped = [], 0
+    for neg_score, path, start, sid in found:
+        if fresh.get(path, "ok") == "missing":
+            stale_dropped += 1
+            exact_total -= neg_score == -2.0
+            continue
+        _, _, _, end, _, symbol, kind, part = rows[sid]
+        hits.append({
+            "id": sid, "path": path, "start_line": start, "end_line": end,
+            **_symbol_fields(symbol, kind, part),
+            "match": "exact" if neg_score == -2.0 else "prefix",
+            **_stale_field(fresh, path),
+        })
+    head = {**_envelope(project), "indexed": True, "indexing": indexing,
+            "stale_dropped": stale_dropped, "exact_count": exact_total,
+            **({} if exact_total else {"note": SYMBOL_NOTE})}
+    response = _fit_response(head, hits, response_cap)
+    response["dropped"] += cut  # matches beyond k count as dropped too
+    record_served(project, len(json.dumps(response["hits"])), len(response["hits"]))
+    return response
+
+
 def _fit_response(
     head: dict[str, Any], hits: list[dict], cap: int, key: str = "hits"
 ) -> dict[str, Any]:
@@ -339,8 +404,9 @@ def _fit_response(
         if not kept:
             hit = {**hit, "truncated": True}
             response = {**head, key: [hit], "dropped": len(hits) - 1}
-            field = "text" if "text" in hit else "preview"  # related items carry only a preview
-            while hit[field] and _size(response) > cap:
+            # related items carry only a preview, lean items and symbol hits neither
+            field = next((f for f in ("text", "preview") if f in hit), None)
+            while field and hit[field] and _size(response) > cap:
                 hit[field] = hit[field][: len(hit[field]) - max(_size(response) - cap, 1)]
             kept.append(hit)
         break
@@ -380,7 +446,7 @@ def get_slice(project: Project, slice_id: str, *, indexing: bool = False) -> dic
 
 def get_related(
     project: Project, slice_id: str | None = None, path: str | None = None, limit: int = 10,
-    *, indexing: bool = False,
+    *, indexing: bool = False, lean: bool = False, edge_types: list[str] | None = None,
 ) -> dict[str, Any]:
     """1-hop neighbours (FR-006) of one slice or of one file, nearest edge types first.
 
@@ -392,11 +458,18 @@ def get_related(
     when the queried file references it, "in" when it references the queried file.
     A function or method slice also gets `unresolved_callers` (FR-030): how many other symbols
     call its name without a `calls` edge to it, so `called_by` may be incomplete when > 0.
+    `edge_types` keeps only neighbours of those edge types, before `limit` is applied.
+    `lean` leaves out each `preview`, marks neighbours in test files `test: true`, and adds
+    `complete` to a function or method slice: true when `unresolved_callers == 0` and every
+    `called_by` neighbour was returned (cut neighbours of other types do not count). It is
+    left out when `edge_types` excludes `called_by`.
     """
     if (slice_id is None) == (path is None):
         raise ValueError("pass exactly one of slice_id or path")
     if limit < 1:
         raise ValueError(f"limit must be >= 1, got {limit}")
+    if edge_types is not None and (bad := [t for t in edge_types if t not in EDGE_TYPES]):
+        raise ValueError(f"unknown edge_types {bad}: use any of {list(EDGE_TYPES)}")
     rel = relative_inside(project.root, path, what="path") if path is not None else None
     store = ProjectStore.open_read(config.index_file(project.project_id))
     head = {**_envelope(project), "indexed": store is not None, "indexing": indexing}
@@ -414,12 +487,13 @@ def get_related(
             rel = row[1]
             if row[6] in ("function", "method"):
                 extra = {"unresolved_callers": store.unresolved_callers(row[1], row[5])}
+
         elif not store.has_file(rel):
             raise ValueError(f"path {path!r} is not indexed in project {project.project_id}")
         found = store.related(slice_id, rel)
         stored = store.file_stats(sorted({f[2][1] for f in found}))
     fresh = _freshness(project.root, stored)
-    found = [f for f in found if f[2][0] != slice_id]
+    found = [f for f in found if f[2][0] != slice_id and (edge_types is None or f[0] in edge_types)]
     found.sort(key=lambda f: (EDGE_TYPES.index(f[0]), f[1] != "out", f[2][1], f[2][2]))
     related, stale_dropped = [], 0
     for kind, direction, (sid, spath, start, end, text, symbol, kind_, part) in found[:limit]:
@@ -433,12 +507,18 @@ def get_related(
             "end_line": end,
             "edge_type": kind,
             **({"direction": direction} if direction else {}),
-            "preview": " ".join(text.split())[:PREVIEW_CHARS],
+            **({"test": True} if lean and is_test_path(spath) else {}),
+            **({} if lean else {"preview": " ".join(text.split())[:PREVIEW_CHARS]}),
             **_symbol_fields(symbol, kind_, part),
             **_stale_field(fresh, spath),
         })
     head = {**head, "source": {"slice_id": slice_id, "path": rel}, "stale_dropped": stale_dropped, **extra}
     out = _fit_response(head, related, config.max_response_chars(), key="related")
     out["dropped"] += len(found) - len(related) - stale_dropped
-    record_served(project, sum(len(r["preview"]) for r in out["related"]), len(out["related"]))
+    if lean and "unresolved_callers" in out and (edge_types is None or "called_by" in edge_types):
+        callers = sum(f[0] == "called_by" for f in found)
+        returned = sum(r["edge_type"] == "called_by" for r in out["related"])
+        out["complete"] = out["unresolved_callers"] == 0 and callers == returned
+    chars = len(json.dumps(out["related"])) if lean else sum(len(r["preview"]) for r in out["related"])
+    record_served(project, chars, len(out["related"]))
     return out
