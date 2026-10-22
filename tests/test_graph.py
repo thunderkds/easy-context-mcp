@@ -304,3 +304,22 @@ def test_oversized_first_neighbour_is_shortened_not_a_crash(repo, monkeypatch):
     hit = out["related"][0]
     assert hit["truncated"] is True and len(hit["preview"]) < len(full["related"][0]["preview"])
     assert tools._size(out) <= cap
+
+
+# --- HUN-54: stale neighbours (FR-029) ----------------------------------------------------------
+
+
+def test_related_drops_deleted_neighbour_and_marks_changed(repo):
+    root, p = repo
+    base = related(p, path="app.py")
+    assert base["stale_dropped"] == 0
+    assert all("stale" not in r for r in base["related"])
+    assert {r["path"] for r in base["related"]} == {"auth.py", "utils/helpers.py"}
+    (root / "auth.py").unlink()
+    with (root / "utils" / "helpers.py").open("a") as f:
+        f.write("\n# changed\n")
+    out = related(p, path="app.py")
+    by_path = {r["path"]: r for r in out["related"]}
+    assert "auth.py" not in by_path and out["stale_dropped"] >= 1
+    assert by_path["utils/helpers.py"]["stale"] is True
+    assert "stale" not in out["source"]

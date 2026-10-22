@@ -378,9 +378,9 @@ Six tools. Every tool takes an optional `root` (see above).
 | Tool | Arguments | Result |
 |---|---|---|
 | `index_path` | `path` (default `.`), `force` | Starts a background job and returns at once: `job_id`, `status`, `files_total`, `estimated_seconds`. A call while a job is active returns that job. Unchanged files are skipped unless `force`. |
-| `search_semantic` | `query`, `k` (default 5, max 100), `path_prefix` | Top-k hits: `id, path, start_line, end_line, score, preview, text, truncated`. Hits from code symbol slices also carry `symbol` and `kind`, and a `part` for a symbol split into parts. `dropped` counts hits left out by the response cap. `indexing: true` means a job is running and the results cover the files committed so far. |
-| `get_slice` | `slice_id` | Full text of one slice with path and lines (`truncated` if the slice cap applies). |
-| `get_related` | `slice_id` or `path`, `limit` (default 10) | 1-hop neighbours with path and line range. Extra ones are counted in `dropped`. |
+| `search_semantic` | `query`, `k` (default 5, max 100), `path_prefix` | Top-k hits: `id, path, start_line, end_line, score, preview, text, truncated`. Hits from code symbol slices also carry `symbol` and `kind`, and a `part` for a symbol split into parts. `dropped` counts hits left out by the response cap. Each hit's file is checked on disk (size + mtime): a hit whose file is gone is left out and counted in `stale_dropped`, and a hit whose file changed since indexing carries `stale: true`. `indexing: true` means a job is running and the results cover the files committed so far. |
+| `get_slice` | `slice_id` | Full text of one slice with path and lines (`truncated` if the slice cap applies). `stale: true` when the file changed or is gone since indexing; the slice is never hidden. |
+| `get_related` | `slice_id` or `path`, `limit` (default 10) | 1-hop neighbours with path and line range. Extra ones are counted in `dropped`. A neighbour whose file is gone is left out and counted in `stale_dropped`; one whose file changed carries `stale: true`. |
 | `list_indexes` | none | Every index on the machine: `project_id, root, root_exists, files, slices, last_index_at, indexing, status, job_id, files_done, files_total, eta_seconds, last_error`. |
 | `get_stats` | `project_id` | Counts, skip counts per reason from the last job, `last_index_at`, job status, and `chars_served` / `slices_served` (cumulative) plus `..._since_start` (this server process). With another project's `project_id` you get counts only, never slice text. |
 
