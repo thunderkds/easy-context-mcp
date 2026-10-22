@@ -446,7 +446,7 @@ def get_slice(project: Project, slice_id: str, *, indexing: bool = False) -> dic
 
 def get_related(
     project: Project, slice_id: str | None = None, path: str | None = None, limit: int = 10,
-    *, indexing: bool = False, lean: bool = False,
+    *, indexing: bool = False, lean: bool = False, edge_types: list[str] | None = None,
 ) -> dict[str, Any]:
     """1-hop neighbours (FR-006) of one slice or of one file, nearest edge types first.
 
@@ -458,13 +458,18 @@ def get_related(
     when the queried file references it, "in" when it references the queried file.
     A function or method slice also gets `unresolved_callers` (FR-030): how many other symbols
     call its name without a `calls` edge to it, so `called_by` may be incomplete when > 0.
+    `edge_types` keeps only neighbours of those edge types, before `limit` is applied.
     `lean` leaves out each `preview`, marks neighbours in test files `test: true`, and adds
-    `complete` (`unresolved_callers == 0`) to a function or method slice.
+    `complete` to a function or method slice: true when `unresolved_callers == 0` and every
+    `called_by` neighbour was returned (cut neighbours of other types do not count). It is
+    left out when `edge_types` excludes `called_by`.
     """
     if (slice_id is None) == (path is None):
         raise ValueError("pass exactly one of slice_id or path")
     if limit < 1:
         raise ValueError(f"limit must be >= 1, got {limit}")
+    if edge_types is not None and (bad := [t for t in edge_types if t not in EDGE_TYPES]):
+        raise ValueError(f"unknown edge_types {bad}: use any of {list(EDGE_TYPES)}")
     rel = relative_inside(project.root, path, what="path") if path is not None else None
     store = ProjectStore.open_read(config.index_file(project.project_id))
     head = {**_envelope(project), "indexed": store is not None, "indexing": indexing}
@@ -488,7 +493,7 @@ def get_related(
         found = store.related(slice_id, rel)
         stored = store.file_stats(sorted({f[2][1] for f in found}))
     fresh = _freshness(project.root, stored)
-    found = [f for f in found if f[2][0] != slice_id]
+    found = [f for f in found if f[2][0] != slice_id and (edge_types is None or f[0] in edge_types)]
     found.sort(key=lambda f: (EDGE_TYPES.index(f[0]), f[1] != "out", f[2][1], f[2][2]))
     related, stale_dropped = [], 0
     for kind, direction, (sid, spath, start, end, text, symbol, kind_, part) in found[:limit]:
@@ -510,8 +515,10 @@ def get_related(
     head = {**head, "source": {"slice_id": slice_id, "path": rel}, "stale_dropped": stale_dropped, **extra}
     out = _fit_response(head, related, config.max_response_chars(), key="related")
     out["dropped"] += len(found) - len(related) - stale_dropped
-    if lean and "unresolved_callers" in out:
-        out["complete"] = out["unresolved_callers"] == 0 and out["dropped"] == 0
+    if lean and "unresolved_callers" in out and (edge_types is None or "called_by" in edge_types):
+        callers = sum(f[0] == "called_by" for f in found)
+        returned = sum(r["edge_type"] == "called_by" for r in out["related"])
+        out["complete"] = out["unresolved_callers"] == 0 and callers == returned
     chars = len(json.dumps(out["related"])) if lean else sum(len(r["preview"]) for r in out["related"])
     record_served(project, chars, len(out["related"]))
     return out

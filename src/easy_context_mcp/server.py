@@ -117,6 +117,7 @@ def create_app(
         limit: int = 10,
         root: str | None = None,
         lean: bool = False,
+        edge_types: list[str] | None = None,
     ) -> dict[str, Any]:
         """Fetch 1-hop related slices of one slice (`slice_id`) or one file (`path`); pass one.
 
@@ -131,14 +132,19 @@ def create_app(
         its name without a `calls` edge to it. `called_by` is best-effort; grep the name when
         it is above 0 and before a rename or delete.
 
+        `edge_types` (a list such as ["called_by"]) keeps only neighbours of those edge types,
+        applied before `limit`; an unknown name is an error.
+
         `lean=true` returns the same neighbours without `preview`, marks neighbours in test
-        files `test: true`, and on a function or method slice adds `complete` (true when
-        `unresolved_callers` is 0 and no neighbour was left out by `limit` or the size cap, so
-        `dropped` is 0; when false, grep the name or raise `limit`).
+        files `test: true`, and on a function or method slice adds `complete`: true when
+        `unresolved_callers` is 0 and every `called_by` neighbour was returned (neighbours of
+        other types that were cut do not matter). When false, grep the name or raise `limit`.
+        `complete` is left out when `edge_types` excludes `called_by`.
         """
         project = _bind(ctx, root, service_mode)
         return tools.get_related(
-            project, slice_id, path, limit, indexing=runner.indexing(project), lean=lean
+            project, slice_id, path, limit, indexing=runner.indexing(project), lean=lean,
+            edge_types=edge_types,
         )
 
     @app.tool()

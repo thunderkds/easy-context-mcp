@@ -443,3 +443,45 @@ def test_lean_complete_is_false_when_the_limit_cut_neighbours(tmp_path, home):
     assert cut["unresolved_callers"] == 0 and cut["dropped"] >= 1 and cut["complete"] is False
     full = tools.get_related(p, slice_id=slice_id, limit=10, lean=True)
     assert full["dropped"] == 0 and full["complete"] is True
+
+
+def callers_project(tmp_path, n_callers=3):
+    body = "def target():\n    return 1\n\n\n"
+    body += "".join(f"def c{i}():\n    target()\n\n\n" for i in range(n_callers))
+    return small_project(tmp_path, {"m.py": body})
+
+
+def test_edge_types_keeps_only_the_named_types(tmp_path, home):
+    p = callers_project(tmp_path)
+    out = tools.get_related(p, slice_id=sid(home, p, "m.py", "target"), edge_types=["called_by"])
+    assert out["related"] and {r["edge_type"] for r in out["related"]} == {"called_by"}
+    assert out["dropped"] == 0
+    full = tools.get_related(p, slice_id=sid(home, p, "m.py", "target"), lean=True,
+                             edge_types=["called_by"])
+    assert all("preview" not in r for r in full["related"])
+
+
+def test_unknown_edge_type_is_an_error_listing_the_known_ones(tmp_path, home):
+    p = callers_project(tmp_path)
+    with pytest.raises(ValueError, match="called_by") as exc:
+        tools.get_related(p, slice_id=sid(home, p, "m.py", "target"), edge_types=["nope"])
+    assert "nope" in str(exc.value)
+
+
+def test_complete_ignores_cut_neighbours_of_other_types(tmp_path, home):
+    p = callers_project(tmp_path)
+    slice_id = sid(home, p, "m.py", "target")
+    ok = tools.get_related(p, slice_id=slice_id, limit=3, lean=True)
+    assert ok["dropped"] >= 1  # same_file etc. were cut
+    assert [r["edge_type"] for r in ok["related"]].count("called_by") == 3
+    assert ok["complete"] is True
+    cut = tools.get_related(p, slice_id=slice_id, limit=2, lean=True)
+    assert cut["complete"] is False
+
+
+def test_complete_is_omitted_when_edge_types_excludes_called_by(tmp_path, home):
+    p = callers_project(tmp_path)
+    slice_id = sid(home, p, "m.py", "target")
+    assert "complete" not in tools.get_related(p, slice_id=slice_id, lean=True, edge_types=["calls"])
+    both = tools.get_related(p, slice_id=slice_id, lean=True, edge_types=["called_by"], limit=2)
+    assert both["complete"] is False

@@ -221,7 +221,7 @@ Find code by symbol first; grep for the rest.
   `match: "exact"`. If `exact_count` is 0, grep before you say X does not exist:
   variables, test code and plain text are not indexed.
 - Read one symbol: get_slice(id), not the whole file.
-- Who calls X, what X calls, which tests cover X: get_related(slice_id, lean=true).
+- Who calls X, what X calls, which tests cover X: get_related(slice_id, lean=true, edge_types=["called_by"|"calls"|"import"]).
   The list is complete only when `complete: true`. Otherwise grep the name for the rest.
   Test files are the neighbours marked `test: true`.
 Use grep and ranged reads for exact text, strings and config keys, and whenever a
@@ -389,7 +389,7 @@ Six tools. Every tool takes an optional `root` (see above).
 | `search_semantic` | `query`, `k` (default 5, max 100), `path_prefix`, `mode` | Top-k hits: `id, path, start_line, end_line, score, preview, text, truncated`. Hits from code symbol slices also carry `symbol` and `kind`, and a `part` for a symbol split into parts. `dropped` counts hits left out by the response cap. Each hit's file is checked on disk (size + mtime): a hit whose file is gone is left out and counted in `stale_dropped`, and a hit whose file changed since indexing carries `stale: true`. `indexing: true` means a job is running and the results cover the files committed so far. |
 | `search_semantic` with `mode="symbol"` | same | Symbol-name answer, no embedding call: up to k matches `id, path, start_line, end_line, symbol, kind, match`, where `match` is `exact` (the query equals the qualified name or a dotted tail) or `prefix`, exact ones first. No `text` or `preview`. `exact_count` counts the exact matches before the k cut (the matches cut by k are in `dropped`). When it is 0, a `note` says that only functions, classes, methods, interfaces and top-level constants are indexed, so grep before you conclude a name does not exist. The stale check applies. Any other `mode` is an error. |
 | `get_slice` | `slice_id` | Full text of one slice with path and lines (`truncated` if the slice cap applies). `stale: true` when the file changed or is gone since indexing; the slice is never hidden. |
-| `get_related` | `slice_id` or `path`, `limit` (default 10), `lean` | 1-hop neighbours with path and line range. Extra ones are counted in `dropped`. A neighbour whose file is gone is left out and counted in `stale_dropped`; one whose file changed carries `stale: true`. For a function or method slice the result also has `unresolved_callers`: the number of other symbols that call its name without a `calls` edge to it, so `called_by` may be incomplete when it is above 0. With `lean` (default false), neighbours have no `preview`, neighbours in test files (`.spec.`, `.test.`, `test_*.py`, `*_test.py`, or a `tests/`, `test/`, `__tests__/` directory) carry `test: true`, and a function or method slice also has `complete`: true only when `unresolved_callers` is 0 and `dropped` is 0 (no neighbour cut by `limit` or the size cap; raise `limit` if it is false). |
+| `get_related` | `slice_id` or `path`, `limit` (default 10), `lean`, `edge_types` | 1-hop neighbours with path and line range. Extra ones are counted in `dropped`. A neighbour whose file is gone is left out and counted in `stale_dropped`; one whose file changed carries `stale: true`. For a function or method slice the result also has `unresolved_callers`: the number of other symbols that call its name without a `calls` edge to it, so `called_by` may be incomplete when it is above 0. With `lean` (default false), neighbours have no `preview`, neighbours in test files (`.spec.`, `.test.`, `test_*.py`, `*_test.py`, or a `tests/`, `test/`, `__tests__/` directory) carry `test: true`, and a function or method slice also has `complete`: true only when `unresolved_callers` is 0 and every `called_by` neighbour was returned (cut neighbours of other types do not matter; raise `limit` if it is false). `complete` is left out when `edge_types` excludes `called_by`. `edge_types` (list) keeps only neighbours of those edge types, before `limit`; an unknown name is an error. |
 | `list_indexes` | none | Every index on the machine: `project_id, root, root_exists, files, slices, last_index_at, indexing, status, job_id, files_done, files_total, eta_seconds, last_error`. |
 | `get_stats` | `project_id` | Counts, skip counts per reason from the last job, `last_index_at`, job status, and `chars_served` / `slices_served` (cumulative) plus `..._since_start` (this server process). With another project's `project_id` you get counts only, never slice text. |
 
@@ -487,7 +487,7 @@ Find code by symbol first; grep for the rest.
   `match: "exact"`. If `exact_count` is 0, grep before you say X does not exist:
   variables, test code and plain text are not indexed.
 - Read one symbol: get_slice(id), not the whole file.
-- Who calls X, what X calls, which tests cover X: get_related(slice_id, lean=true).
+- Who calls X, what X calls, which tests cover X: get_related(slice_id, lean=true, edge_types=["called_by"|"calls"|"import"]).
   The list is complete only when `complete: true`. Otherwise grep the name for the rest.
   Test files are the neighbours marked `test: true`.
 Use grep and ranged reads for exact text, strings and config keys, and whenever a
