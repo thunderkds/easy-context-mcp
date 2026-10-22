@@ -53,13 +53,23 @@ def test_readme_has_product_sections_after_plan():
 
 def test_easy_kit_policy_keeps_canonical_wording():
     canonical = (
-        "Prefer easy-context MCP tools for exploration and discovery:\n"
-        "- search_semantic — find code/docs by meaning\n"
-        "- get_related — 1-hop structure (imports, links, headings)\n"
-        "- get_slice — full text of one slice\n\n"
-        "Use native Read/Edit when the path is already known and you need to change a file.\n"
-        "Before first use in a project: index_path on the project root."
+        '## Context retrieval (easy-context)\n'
+        '\n'
+        'Use grep and ranged reads by default. For a known name, exact text, every caller,\n'
+        'or code and its tests, grep is cheaper and just as accurate.\n'
+        'Use easy-context MCP tools for questions asked by meaning ("where is X handled",\n'
+        '"why did we choose X"):\n'
+        '- search_semantic — find code/docs by meaning\n'
+        '- get_slice — full text of one slice\n'
+        '- get_related — 1-hop structure (imports, links, headings, calls)\n'
+        '\n'
+        'Callers in get_related are best-effort. Grep for the name when `unresolved_callers` > 0\n'
+        'and before a rename or delete.\n'
+        'A hit with `stale: true` changed on disk after indexing: read the file itself.\n'
+        'In a git worktree, pass `root=<worktree path>` to every tool.\n'
+        'Before first use in a project, and after a merge: index_path on the project root.'
     )
+    assert "Prefer easy-context MCP tools" not in README
     assert README.count(canonical) == 2  # section 10 and the paste-ready copy
     assert "Binding:" in README
 

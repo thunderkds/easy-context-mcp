@@ -282,3 +282,80 @@ def test_symbol_edges_resolver_rules():
     refs = '{"calls":[["h",null]]}'
     rows = [("x", "x.py", "run", "function", refs), ("y", "y.py", "h", "function", None)]
     assert symbol_edges(rows, {}) == {("x.py", "y.py", "calls", "x", "y")}  # unique project-wide
+
+
+# --- HUN-55 / FR-030: unresolved_callers on function / method slices ------------------------------
+
+
+def unresolved(home, p, path, symbol):
+    return tools.get_related(p, slice_id=sid(home, p, path, symbol))
+
+
+def small_project(tmp_path, files):
+    root = tmp_path / "small"
+    root.mkdir()
+    for name, text in files.items():
+        (root / name).write_text(text)
+    p = project(root)
+    reindex(p)
+    return p
+
+
+def test_ambiguous_dup_counts_one_unresolved_caller(repo, home):
+    _, p = repo
+    for path in ("dup_a.py", "dup_b.py"):
+        assert unresolved(home, p, path, "dup")["unresolved_callers"] == 1
+
+
+def test_fully_linked_function_has_zero_unresolved(repo, home):
+    _, p = repo
+    out = unresolved(home, p, "auth.py", "normalize")
+    assert out["unresolved_callers"] == 0
+
+
+def test_method_called_on_unknown_receiver_is_unresolved(tmp_path, home):
+    p = small_project(tmp_path, {"m.py": "def run():\n    return 1\n\n\ndef go(o):\n    o.run()\n"})
+    out = unresolved(home, p, "m.py", "run")
+    assert out["unresolved_callers"] == 1
+    assert not [r for r in out["related"] if r["edge_type"] == "called_by"]
+
+
+def test_resolved_caller_is_not_counted(tmp_path, home):
+    p = small_project(tmp_path, {"m.py": "def helper():\n    return 1\n\n\ndef main():\n    helper()\n"})
+    out = unresolved(home, p, "m.py", "helper")
+    assert [r["symbol"] for r in out["related"] if r["edge_type"] == "called_by"] == ["main"]
+    assert out["unresolved_callers"] == 0
+
+
+def test_caller_resolved_to_other_same_named_symbol_not_counted(tmp_path, home):
+    p = small_project(tmp_path, {
+        "a.py": "def dup():\n    return 1\n\n\ndef use():\n    dup()\n",
+        "b.py": "def dup():\n    return 2\n",
+    })
+    assert unresolved(home, p, "b.py", "dup")["unresolved_callers"] == 0
+    assert unresolved(home, p, "a.py", "dup")["unresolved_callers"] == 0
+
+
+def test_recursion_is_not_counted(tmp_path, home):
+    p = small_project(tmp_path, {"m.py": "def fact(n):\n    return fact(n - 1)\n"})
+    assert unresolved(home, p, "m.py", "fact")["unresolved_callers"] == 0
+
+
+def test_underscore_name_is_matched_literally(tmp_path, home):
+    p = small_project(tmp_path, {
+        "m.py": "def a_b():\n    return 1\n\n\ndef axb():\n    return 2\n\n\ndef go(o):\n    o.axb()\n",
+    })
+    assert unresolved(home, p, "m.py", "a_b")["unresolved_callers"] == 0
+    assert unresolved(home, p, "m.py", "axb")["unresolved_callers"] == 1
+
+
+def test_no_unresolved_callers_key_for_class_path_and_markdown(tmp_path, home):
+    p = small_project(tmp_path, {
+        "m.py": "class K:\n    def f(self):\n        return 1\n",
+        "d.md": "# Title\n\ntext\n",
+    })
+    assert "unresolved_callers" not in unresolved(home, p, "m.py", "K")
+    assert "unresolved_callers" in unresolved(home, p, "m.py", "K.f")
+    md = db_rows(home, p, "SELECT id FROM slices WHERE path = 'd.md'")[0][0]
+    assert "unresolved_callers" not in tools.get_related(p, slice_id=md)
+    assert "unresolved_callers" not in tools.get_related(p, path="m.py")
