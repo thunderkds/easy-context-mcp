@@ -263,6 +263,18 @@ class ProjectStore:
         )
         return {r[0]: r[1:] for r in rows}
 
+    def file_stats(self, paths: list[str]) -> dict[str, tuple[int | None, int | None]]:
+        """path -> (size, mtime_ns) as stored; None on older indexes. Unknown paths are absent."""
+        out: dict[str, tuple[int | None, int | None]] = {}
+        for i in range(0, len(paths), 500):  # stay under SQLite's variable limit
+            part = paths[i : i + 500]
+            marks = ",".join("?" * len(part))
+            for path, size, mtime in self.con.execute(
+                f"SELECT path, size, mtime_ns FROM files WHERE path IN ({marks})", part
+            ):
+                out[path] = (size, mtime)
+        return out
+
     def _bump_generation(self) -> None:
         self.con.execute(_BUMP_GENERATION)
 

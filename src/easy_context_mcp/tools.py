@@ -2,6 +2,8 @@
 
 import hashlib
 import json
+import os
+import stat
 import threading
 from collections.abc import Callable
 from contextlib import closing
@@ -227,6 +229,35 @@ def _symbol_fields(symbol: str | None, kind: str | None, part: str | None) -> di
     return {"symbol": symbol, "kind": kind, **({"part": part} if part else {})}
 
 
+def _freshness(root: str, stored: dict[str, tuple[int | None, int | None]]) -> dict[str, str]:
+    """path -> "ok" | "changed" | "missing" against the disk: one `lstat` per path, no file read.
+
+    "missing": the path is gone, is not a regular file (a directory, or a symlink that now stands
+    in for the file), or cannot be stat'ed. "changed": a stored size or mtime_ns differs. A stored
+    None (older index) is never "changed".
+    """
+    out = {}
+    for path, (size, mtime_ns) in stored.items():
+        try:
+            st = os.lstat(os.path.join(root, path))
+        except OSError:
+            out[path] = "missing"
+            continue
+        if not stat.S_ISREG(st.st_mode):
+            out[path] = "missing"
+        elif (size is not None and size != st.st_size) or (
+            mtime_ns is not None and mtime_ns != st.st_mtime_ns
+        ):
+            out[path] = "changed"
+        else:
+            out[path] = "ok"
+    return out
+
+
+def _stale_field(fresh: dict[str, str], path: str) -> dict[str, Any]:
+    return {"stale": True} if fresh.get(path) == "changed" else {}
+
+
 def _size(response: dict[str, Any]) -> int:
     """Characters of the response as FastMCP serializes it (indent=2 JSON text)."""
     return len(json.dumps(response, indent=2, ensure_ascii=False))
@@ -255,18 +286,23 @@ def search_semantic(
     store = ProjectStore.open_read(config.index_file(project.project_id))
     if store is None:
         return {**_envelope(project), "indexed": False, "indexing": indexing, "hits": [],
-                "dropped": 0}
+                "dropped": 0, "stale_dropped": 0}
     with closing(store):
         store.check_model(embedder.model_id)
         qvec = normalize(embedder.embed([query.strip()]))[0]
         ranked = search_vectors(store, qvec, k, prefix, store.name_matches(query))
         rows = store.get_slices([sid for sid, _ in ranked])
+        stored = store.file_stats(sorted({r[1] for r in rows.values()}))
+    fresh = _freshness(project.root, stored)
 
-    hits = []
+    hits, stale_dropped = [], 0
     for sid, score in ranked:
         if sid not in rows:  # replaced by a concurrent re-index since ranking
             continue
         _, path, start, end, text, symbol, kind, part = rows[sid]
+        if fresh.get(path, "ok") == "missing":
+            stale_dropped += 1
+            continue
         capped, truncated = _capped(text, slice_cap)
         hits.append({
             "id": sid,
@@ -278,8 +314,10 @@ def search_semantic(
             "text": capped,
             "truncated": truncated,
             **_symbol_fields(symbol, kind, part),
+            **_stale_field(fresh, path),
         })
-    head = {**_envelope(project), "indexed": True, "indexing": indexing}
+    head = {**_envelope(project), "indexed": True, "indexing": indexing,
+            "stale_dropped": stale_dropped}
     response = _fit_response(head, hits, response_cap)
     record_served(project, sum(len(h["text"]) for h in response["hits"]), len(response["hits"]))
     return response
@@ -315,11 +353,15 @@ def get_slice(project: Project, slice_id: str, *, indexing: bool = False) -> dic
     if store is not None:
         with closing(store):
             row = store.get_slice(slice_id)
+            stored = store.file_stats([row[1]]) if row else {}
     if row is None:
         raise ValueError(
             f"unknown slice_id {slice_id!r} in project {project.project_id} ({project.root})"
         )
     sid, path, start, end, text, symbol, kind, part = row
+    fresh = _freshness(project.root, {path: stored.get(path, (None, None))})
+    if fresh[path] == "missing":
+        fresh[path] = "changed"  # get_slice never hides a slice: a gone file is stale too
     capped, truncated = _capped(text, config.max_slice_chars())
     record_served(project, len(capped), 1)
     return {
@@ -332,6 +374,7 @@ def get_slice(project: Project, slice_id: str, *, indexing: bool = False) -> dic
         "text": capped,
         "truncated": truncated,
         **_symbol_fields(symbol, kind, part),
+        **_stale_field(fresh, path),
     }
 
 
@@ -356,7 +399,7 @@ def get_related(
     store = ProjectStore.open_read(config.index_file(project.project_id))
     head = {**_envelope(project), "indexed": store is not None, "indexing": indexing}
     if store is None:
-        return {**head, "related": [], "dropped": 0}
+        return {**head, "related": [], "dropped": 0, "stale_dropped": 0}
     with closing(store):
         if slice_id is not None:
             row = store.get_slice(slice_id)
@@ -369,10 +412,15 @@ def get_related(
         elif not store.has_file(rel):
             raise ValueError(f"path {path!r} is not indexed in project {project.project_id}")
         found = store.related(slice_id, rel)
+        stored = store.file_stats(sorted({f[2][1] for f in found}))
+    fresh = _freshness(project.root, stored)
     found = [f for f in found if f[2][0] != slice_id]
     found.sort(key=lambda f: (EDGE_TYPES.index(f[0]), f[1] != "out", f[2][1], f[2][2]))
-    related = []
+    related, stale_dropped = [], 0
     for kind, direction, (sid, spath, start, end, text, symbol, kind_, part) in found[:limit]:
+        if fresh.get(spath, "ok") == "missing":
+            stale_dropped += 1
+            continue
         related.append({
             "id": sid,
             "path": spath,
@@ -382,9 +430,10 @@ def get_related(
             **({"direction": direction} if direction else {}),
             "preview": " ".join(text.split())[:PREVIEW_CHARS],
             **_symbol_fields(symbol, kind_, part),
+            **_stale_field(fresh, spath),
         })
-    out = _fit_response({**head, "source": {"slice_id": slice_id, "path": rel}}, related,
-                        config.max_response_chars(), key="related")
-    out["dropped"] += len(found) - len(related)
+    head = {**head, "source": {"slice_id": slice_id, "path": rel}, "stale_dropped": stale_dropped}
+    out = _fit_response(head, related, config.max_response_chars(), key="related")
+    out["dropped"] += len(found) - len(related) - stale_dropped
     record_served(project, sum(len(r["preview"]) for r in out["related"]), len(out["related"]))
     return out

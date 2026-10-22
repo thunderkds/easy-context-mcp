@@ -483,3 +483,125 @@ def test_real_model_finds_auth_slice_top3(tmp_path, monkeypatch):
     tools.index_path(p, ".", embedder=emb)
     hits = tools.search_semantic(p, QUERY, k=3, embedder=emb)["hits"]
     assert any(h["path"] == "auth.py" and h["start_line"] <= 18 <= h["end_line"] for h in hits)
+
+
+# --- HUN-54: stale hit check (FR-029) ---------------------------------------------------------
+
+
+@pytest.fixture
+def two_files(tmp_path):
+    root = tmp_path / "stale"
+    root.mkdir()
+    (root / "a.py").write_text("def alpha():\n    return 1\n")
+    (root / "b.py").write_text("def beta():\n    return 2\n")
+    p = project(root)
+    emb = FakeEmbedder()
+    tools.index_path(p, ".", embedder=emb)
+    return root, p, emb
+
+
+def test_unchanged_files_add_no_stale_key(two_files):
+    _, p, emb = two_files
+    res = tools.search_semantic(p, "alpha", embedder=emb)
+    assert res["stale_dropped"] == 0
+    assert res["hits"] and all("stale" not in h for h in res["hits"])
+
+
+def test_deleted_file_hit_is_dropped_and_counted(two_files):
+    root, p, emb = two_files
+    (root / "b.py").unlink()
+    res = tools.search_semantic(p, "beta", embedder=emb)
+    assert "b.py" not in {h["path"] for h in res["hits"]}
+    assert res["stale_dropped"] >= 1
+
+
+def test_changed_size_marks_stale(two_files):
+    root, p, emb = two_files
+    with (root / "a.py").open("a") as f:
+        f.write("# more\n")
+    res = tools.search_semantic(p, "alpha", embedder=emb)
+    by_path = {h["path"]: h for h in res["hits"]}
+    assert res["hits"][0]["path"] == "a.py" and by_path["a.py"]["stale"] is True
+    assert "stale" not in by_path["b.py"] and res["stale_dropped"] == 0
+
+
+def test_changed_mtime_only_marks_stale(two_files):
+    root, p, emb = two_files
+    st = (root / "a.py").stat()
+    os.utime(root / "a.py", ns=(st.st_atime_ns, st.st_mtime_ns + 5_000_000_000))
+    res = tools.search_semantic(p, "alpha", embedder=emb)
+    assert res["hits"][0]["path"] == "a.py" and res["hits"][0]["stale"] is True
+
+
+def test_file_replaced_by_directory_counts_as_missing(two_files):
+    root, p, emb = two_files
+    (root / "b.py").unlink()
+    (root / "b.py").mkdir()
+    res = tools.search_semantic(p, "beta", embedder=emb)
+    assert "b.py" not in {h["path"] for h in res["hits"]} and res["stale_dropped"] >= 1
+
+
+def test_symlink_replacing_file_counts_as_missing(two_files, tmp_path):
+    root, p, emb = two_files
+    outside = tmp_path / "outside.txt"
+    outside.write_text("def beta(): secret\n")
+    (root / "b.py").unlink()
+    (root / "b.py").symlink_to(outside)
+    res = tools.search_semantic(p, "beta", embedder=emb)
+    assert "b.py" not in {h["path"] for h in res["hits"]} and res["stale_dropped"] >= 1
+
+
+def test_null_size_mtime_only_missing_check_applies(two_files, home):
+    root, p, emb = two_files
+    con = sqlite3.connect(home / "indexes" / p.project_id / "index.sqlite")
+    con.execute("UPDATE files SET size = NULL, mtime_ns = NULL")
+    con.commit()
+    con.close()
+    with (root / "a.py").open("a") as f:
+        f.write("# more\n")
+    (root / "b.py").unlink()
+    res = tools.search_semantic(p, "alpha", embedder=emb)
+    assert res["hits"] and all("stale" not in h for h in res["hits"])
+    assert "b.py" not in {h["path"] for h in res["hits"]} and res["stale_dropped"] >= 1
+
+
+def test_stale_check_stats_each_file_once_and_opens_nothing(two_files, monkeypatch):
+    root, p, emb = two_files
+    stats, opened = [], []
+    real_lstat, real_open = os.lstat, open
+
+    def counting_lstat(path, *a, **kw):
+        if str(path).startswith(str(root)):
+            stats.append(str(path))
+        return real_lstat(path, *a, **kw)
+
+    def counting_open(path, *a, **kw):
+        if str(path).startswith(str(root)):
+            opened.append(str(path))
+        return real_open(path, *a, **kw)
+
+    monkeypatch.setattr(os, "lstat", counting_lstat)
+    monkeypatch.setattr("builtins.open", counting_open)
+    tools.search_semantic(p, "alpha beta", k=10, embedder=emb)
+    assert opened == []
+    assert len(stats) == len(set(stats)) and 1 <= len(stats) <= 2
+
+
+def test_get_slice_never_hides_stale(two_files, home):
+    root, p, _ = two_files
+    sid = db_rows(home, p, "SELECT id FROM slices WHERE path = 'a.py'")[0][0]
+    assert "stale" not in tools.get_slice(p, sid)
+    with (root / "a.py").open("a") as f:
+        f.write("# more\n")
+    changed = tools.get_slice(p, sid)
+    assert changed["stale"] is True and "def alpha" in changed["text"]
+    (root / "a.py").unlink()
+    gone = tools.get_slice(p, sid)
+    assert gone["stale"] is True and "def alpha" in gone["text"]
+
+
+def test_never_indexed_response_has_zero_stale_dropped(tmp_path, home):
+    root = tmp_path / "fresh2"
+    root.mkdir()
+    res = tools.search_semantic(project(root), QUERY, embedder=FakeEmbedder())
+    assert res["stale_dropped"] == 0

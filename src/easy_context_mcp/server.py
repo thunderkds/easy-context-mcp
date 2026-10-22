@@ -78,6 +78,9 @@ def create_app(
 
         `path_prefix` (relative to the root) keeps only hits under that directory or file.
         Hits that do not fit the response size cap are left out and counted in `dropped`.
+        Each hit's file is checked on disk (size + mtime, no read): a hit whose file is gone is
+        left out and counted in `stale_dropped`; a hit whose file changed since indexing carries
+        `stale: true` (its text is the indexed text; re-run `index_path`).
         k is capped at 100. `indexing: true` means a job is running: results come from the
         files committed so far.
         """
@@ -88,7 +91,11 @@ def create_app(
 
     @app.tool()
     def get_slice(ctx: Context, slice_id: str, root: str | None = None) -> dict[str, Any]:
-        """Fetch one slice's text by id, with path + line range (`truncated` if capped)."""
+        """Fetch one slice's text by id, with path + line range (`truncated` if capped).
+
+        `stale: true` means the slice's file changed or is gone since indexing; the text returned
+        is still the indexed text.
+        """
         project = _bind(ctx, root, service_mode)
         return tools.get_slice(project, slice_id, indexing=runner.indexing(project))
 
@@ -107,7 +114,8 @@ def create_app(
         (neighbouring slices). For a function or class slice: `calls`, `called_by`, `contains`
         (a class's members) and `extends` (base types), matched by name (a name with several
         candidates gets no edge) and ranked first. Up to `limit` (default 10) neighbours with
-        path + line range; extra ones are counted in `dropped`.
+        path + line range; extra ones are counted in `dropped`. A neighbour whose file is gone
+        is left out and counted in `stale_dropped`; one whose file changed carries `stale: true`.
         """
         project = _bind(ctx, root, service_mode)
         return tools.get_related(

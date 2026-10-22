@@ -33,10 +33,21 @@
 > **before any implementation commit exists**; if it does not (docs, templates, skill-instruction
 > text), BEFORE is the **verbatim prior content** of what changed — a quoted excerpt, not a command.
 
-**BEFORE**: [pasted timestamped command output showing the thing absent/failing, captured before the
-first implementation commit] OR [verbatim excerpt of the prior content, for non-executable changes]
+**BEFORE**: Captured before any implementation commit. Script: index tmp project (`a.py` alpha, `b.py` beta, `EASY_CONTEXT_HOME` = tmp dir), delete `b.py`, call `search_semantic("beta")`:
 
-**AFTER**: [same command, post-change] OR [verbatim excerpt of the new content]
+```
+2026-10-22T05:03:13.199552+00:00 after deleting b.py:
+[('b.py', 'def beta():\n    return 2'), ('a.py', 'def alpha():\n    return 1')] False
+```
+The deleted file's hit is still returned with its old text; no `stale_dropped` field exists (last value `False`).
+
+**AFTER**: Same script, post-change:
+
+```
+2026-10-22T05:05:14.866525+00:00 after deleting b.py:
+[('a.py', 'def alpha():\n    return 1')] True
+```
+The deleted `b.py` hit is gone and the `stale_dropped` field is present (`True`).
 
 **DELTA**: [one sentence — what a user can now do that they could not before]
 
