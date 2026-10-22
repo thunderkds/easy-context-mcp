@@ -9,6 +9,8 @@
 ## Board
 
 ### Todo
+- [ ] **HUN-59** — Symbol coverage: top-level constants as symbols, decorator calls linked to the decorated symbol | Backend-Implementer | C2 | Risk: Medium | P1 | @hungnh1110 | Guide: `tasks/TASK_GUIDE_HUN-59.md`
+- [ ] **HUN-60** — Lean symbol answers (search_semantic mode="symbol", get_related lean) and symbol-first usage policy | Backend-Implementer | C2 | Risk: Medium | P1 | @hungnh1110 | Guide: `tasks/TASK_GUIDE_HUN-60.md`
 
 ### In Progress
 

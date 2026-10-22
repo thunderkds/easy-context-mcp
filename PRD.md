@@ -87,6 +87,8 @@ Each FR must trace to at least one User Story.
 | FR-028 | **Symbol graph edges.** `get_related` must also return 1-hop `calls` (function/method → callee resolved by name within the project), `called_by` (the reverse), `contains` (class → member) and `extends` (class/interface → base) neighbours for slices from FR-026. Name resolution is best-effort (same file first, then imported names, then a unique project-wide match); ambiguous names create no edge. | US-003 |
 | FR-029 | **Stale hit check** (user decision 2026-10-22, after the context-search benchmark). Before answering, `search_semantic`, `get_related` and `get_slice` compare each returned slice's file on disk with the size + mtime stored at index time (one `stat` per file, no file read). A file that no longer exists: its hits are left out of `search_semantic` / `get_related` and counted in `stale_dropped`. A file whose size or mtime changed: the hit carries `stale: true`. `get_slice` never hides the slice: a missing or changed file gives `stale: true`. Unchanged files add no field. | US-002, US-003 |
 | FR-030 | **Unlinked callers count** (user decision 2026-10-22). For a function or method slice, `get_related` adds `unresolved_callers`: how many symbols in the project call this symbol's short name but got no `calls` edge to any symbol of that name (ambiguous name, or a call on an unknown object). It tells the agent the `called_by` list may be incomplete and grep is needed. | US-003 |
+| FR-031 | **Symbol coverage** (user decision 2026-10-22, after the lean-output investigation on tapchat-apis: 1 of 39 exported constants found; decorator calls such as `@Public()` never linked). JS/TS top-level `const` declarations with a non-function value and Python module-level assignments to an UPPER_CASE name become symbol slices of kind `constant`. Decorator call sites (TS decorators before a method or class, Python decorators of a definition) count as calls of the decorated symbol. | US-001, US-003 |
+| FR-032 | **Lean symbol answers + symbol-first policy** (user decision 2026-10-22). `search_semantic(mode="symbol")` answers by symbol name only (no embedding): matches with `match: "exact"|"prefix"`, `exact_count`, no slice text, and a coverage `note` when nothing matches exactly. `get_related(lean=true)` drops previews, marks test files `test: true`, and adds `complete` (no unresolved callers) on function/method slices. The canonical policy (README §10) becomes symbol-first: symbol lookup and lean relations first, grep for exact text and whenever an answer is not complete. | US-002, US-003, US-008 |
 
 ---
 
@@ -128,7 +130,7 @@ Each FR must trace to at least one User Story.
 - A "pro" feature tier.
 - PyPI publication (`uvx easy-context-mcp`) — deferred to a later release step.
 - File watcher — optional, only if all other work is solid; never block ship. (Tree-sitter symbol slices moved in scope: FR-026–FR-028, user decision 2026-10-20.)
-- New tools for symbols (outline, find-symbol, callers): symbol search and the call graph live inside the six existing tools.
+- New tools for symbols (outline, find-symbol, callers): symbol search and the call graph live inside the six existing tools. (2026-10-22: still no new tools; lean symbol answers are modes of `search_semantic` and `get_related`, FR-032.)
 - Type-resolved call graphs (overloads, dynamic dispatch, reflection): name matching only.
 
 ---
