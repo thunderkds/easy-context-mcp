@@ -1,5 +1,5 @@
 # PROJECT_KANBAN.md
-**Last updated**: 2026-10-21
+**Last updated**: 2026-10-22
 
 > Board cache, pulled from the board by `python3 scripts/board_sync.py pull`. Do not edit it by hand:
 > the board is the source of truth, and the next pull overwrites this file.
@@ -9,6 +9,8 @@
 ## Board
 
 ### Todo
+- [ ] **HUN-54** — Stale hit check: drop hits of deleted files, mark hits of changed files \`stale: true\` | Backend-Implementer | C2 | Risk: Medium | P1 | @hungnh1110 | Guide: `tasks/TASK_GUIDE_HUN-54.md`
+- [ ] **HUN-55** — Usage policy follows the benchmark (grep by default, worktree root) and get_related counts unresolved callers | Backend-Implementer | C2 | Risk: Low | P1 | @hungnh1110 | Guide: `tasks/TASK_GUIDE_HUN-55.md`
 
 ### In Progress
 
