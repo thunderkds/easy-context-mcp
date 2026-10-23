@@ -1,6 +1,6 @@
 # PRD — easy-context-mcp
-**Last updated**: 2026-10-20
-**Status**: Approved (Phase 0 confirmed 2026-10-20)
+**Last updated**: 2026-10-23
+**Status**: Retired 2026-10-23 (was: Approved, Phase 0 confirmed 2026-10-20). See the README status and `memory/decisions.md`.
 **Owner**: thunderkds / Easy Kit family
 
 > **Scope of this document**: *What* to build and *why* — product intent, user stories, requirements, success metrics.

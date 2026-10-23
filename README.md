@@ -1,6 +1,8 @@
 # Plan: easy-context-mcp
 
-**Status:** Ready to build (single version — no v1/v2 product split)  
+> **Retired on 2026-10-23.** Real-agent tests showed that plain grep was as accurate as this index and cost less. Grep answered 149 of 163 questions correctly. Symbol search answered 140. Agents chose these tools in only 4 of 176 runs. The code stays here for reference. Agents must not use it: it is removed from all MCP configs and agent instructions. The next work, memory between agent sessions, continues in `easy-memory-mcp`. The reasons and numbers are in `memory/decisions.md` (2026-10-23).
+
+**Status:** Retired 2026-10-23 (was: Ready to build)  
 **Owner:** thunderkds / Easy Kit family  
 **Related:** personal-agentic-claude (Easy Kit), complementary to (not derived from) AST-symbol MCP products  
 **Last updated:** 2026-10-17

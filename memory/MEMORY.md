@@ -61,3 +61,4 @@
 - [Benchmark → stale check + grep-first policy (HUN-54/55)](decisions.md) — grep default, easy-context for meaning; deleted-file hits dropped (`stale_dropped`), changed → `stale: true`.
 - [Symbol-first: constants + decorator calls, lean answers with completeness flags (HUN-59/60)](decisions.md) — trust only `match: exact` / `complete: true`; grep otherwise.
 - [Test isolation + safe service verify (HUN-30/31)](learnings.md) — use runner fixture; conftest sink + home guard; verify on a home copy with a separate image tag.
+- [RETIRED 2026-10-23 → easy-memory-mcp](decisions.md) — grep won every benchmark; use removed from configs/policy, container down, code kept; session memory continues in the new repo.
