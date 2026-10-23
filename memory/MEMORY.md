@@ -62,3 +62,4 @@
 - [Symbol-first: constants + decorator calls, lean answers with completeness flags (HUN-59/60)](decisions.md) — trust only `match: exact` / `complete: true`; grep otherwise.
 - [Test isolation + safe service verify (HUN-30/31)](learnings.md) — use runner fixture; conftest sink + home guard; verify on a home copy with a separate image tag.
 - [RETIRED 2026-10-23 → easy-memory-mcp](decisions.md) — grep won every benchmark; use removed from configs/policy, container down, code kept; session memory continues in the new repo.
+- [claude -p benchmark gotchas](learnings.md) — resumed total_cost_usd includes the original session; memory goes in the user turn, not the system prompt; set --effort.
